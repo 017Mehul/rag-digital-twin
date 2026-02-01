@@ -1,97 +1,187 @@
-# rag-digital-twin
+# RAG Digital Twin
 
-An AI-powered Digital Twin using Retrieval-Augmented Generation (RAG) and vector databases to retrieve domain-specific knowledge and generate accurate, context-aware responses using large language models.
+A sophisticated AI-powered system implementing Retrieval-Augmented Generation (RAG) to provide accurate, context-aware responses from domain-specific knowledge bases using vector databases and large language models.
 
----
+## Overview
 
-## 📌 Project Overview
+The RAG Digital Twin follows a 6-step pipeline architecture:
 
-This project implements a **Retrieval-Augmented Generative (RAG) AI Digital Twin** that enhances the responses of Large Language Models (LLMs) by grounding them in domain-specific knowledge.  
-Instead of generating answers purely from pretrained data, the system retrieves relevant information from a vector database and uses it as context for response generation, reducing hallucinations and improving accuracy.
+1. **Document Processing**: Extract and chunk text from PDF/TXT documents
+2. **Embedding Generation**: Convert text chunks into vector embeddings
+3. **Vector Storage**: Store embeddings in FAISS vector database
+4. **Query Processing**: Process user queries and perform similarity search
+5. **Context Retrieval**: Retrieve and format relevant context
+6. **Response Generation**: Generate context-aware responses using LLMs
 
----
+## Features
 
-## 🛠️ Technologies Used
+- **Multi-format Document Support**: PDF and TXT document processing
+- **Flexible Model Support**: OpenAI and Hugging Face embedding/LLM providers
+- **Scalable Vector Storage**: FAISS-based vector database with multiple index types
+- **Property-Based Testing**: Comprehensive correctness validation using hypothesis
+- **Configurable Pipeline**: Extensive configuration options for all components
+- **Error Handling**: Robust error handling and recovery mechanisms
+- **Monitoring & Logging**: Comprehensive system monitoring and audit trails
 
-- **Python**
-- **Large Language Models (OpenAI / Hugging Face)**
-- **FAISS (Vector Database)**
-- **Retrieval-Augmented Generation (RAG)**
-- **Git & GitHub**
-
----
-
-## ⚙️ System Architecture
-
-The system follows a Retrieval-Augmented Generation pipeline:
-
-1. Domain-specific documents are collected and preprocessed.
-2. Text data is converted into vector embeddings.
-3. Embeddings are stored in a FAISS vector database.
-4. User queries are embedded and matched using similarity search.
-5. Relevant context is retrieved and passed to the LLM.
-6. The LLM generates a context-aware and accurate response.
-
----
-
-## 🚀 Features
-
-- Domain-specific question answering
-- Reduced hallucination using retrieval-based context
-- Fast semantic search with vector embeddings
-- Modular and scalable design
-- Explainable AI responses through retrieved context
-
----
-
-## 📂 Project Structure
+## Project Structure
 
 ```
 rag-digital-twin/
-│
-├── data/ # Input documents (PDF/TXT)
-├── embeddings/ # Stored FAISS vector index
-├── src/
-│ ├── ingest.py # Document preprocessing & embedding
-│ ├── retriever.py # FAISS similarity search
-│ └── rag_pipeline.py # RAG-based response generation
-├── requirements.txt
-└── README.md
+├── data/                    # Input documents
+│   ├── processed/          # Processed document chunks
+│   └── raw/               # Original documents
+├── embeddings/            # Vector store files
+├── src/                   # Source code
+│   ├── models/           # Data models
+│   ├── providers/        # LLM and embedding providers
+│   └── utils/           # Utility functions
+├── config/              # Configuration files
+├── logs/               # System logs
+├── tests/              # Test files
+└── requirements.txt    # Python dependencies
 ```
 
----
+## Installation
 
-## ▶️ How to Run
+1. **Clone the repository**:
+   ```bash
+   git clone <repository-url>
+   cd rag-digital-twin
+   ```
 
-Clone the repository and navigate into the project directory:
+2. **Install dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Set up environment variables**:
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+4. **Configure the system**:
+   ```bash
+   # Edit config/rag_config.yaml as needed
+   ```
+
+## Quick Start
+
+### 1. Document Ingestion
+
+```python
+from src.rag_pipeline import RAGPipeline
+from src.models.rag_config import RAGConfig
+
+# Load configuration
+config = RAGConfig.from_json_file("config/rag_config.yaml")
+
+# Initialize pipeline
+pipeline = RAGPipeline(config)
+
+# Ingest documents
+results = pipeline.ingest_documents(["data/raw/document1.pdf", "data/raw/document2.txt"])
+print(f"Processed {results.successful_documents} documents")
+```
+
+### 2. Query Processing
+
+```python
+# Query the system
+response = pipeline.query("What is the main topic of the documents?")
+print(f"Response: {response.response_text}")
+print(f"Sources: {response.sources}")
+```
+
+## Configuration
+
+The system is configured through `config/rag_config.yaml`. Key configuration sections:
+
+- **Model Configuration**: Embedding and LLM provider settings
+- **Processing Configuration**: Document chunking and processing parameters
+- **Retrieval Configuration**: Similarity search and context retrieval settings
+- **System Configuration**: Performance and operational parameters
+
+## Testing
+
+The project includes comprehensive testing with both unit tests and property-based tests:
+
 ```bash
-git clone https://github.com/017Mehul/rag-digital-twin
-cd rag-digital-twin
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src
+
+# Run only property-based tests
+pytest -m "hypothesis"
 ```
 
-Install the required dependencies:
-```bash
-pip install -r requirements.txt
+## Core Data Models
+
+### DocumentChunk
+Represents processed document segments with metadata and source information.
+
+### EmbeddingMetadata
+Tracks embedding information and maintains relationships to source content.
+
+### RAGConfig
+Centralized configuration management for all system parameters.
+
+### SearchResults
+Results from vector similarity search operations.
+
+### GeneratedResponse
+LLM-generated responses with source attribution and confidence metrics.
+
+## Error Handling
+
+The system includes comprehensive error handling with:
+
+- **Structured Exceptions**: RAGException base class with error codes and context
+- **Component-Specific Errors**: Specialized exceptions for each system component
+- **Error Recovery**: Automatic retry logic and fallback mechanisms
+- **Logging Integration**: Detailed error logging for debugging and monitoring
+
+## Development
+
+### Adding New Document Formats
+
+1. Extend the DocumentProcessor class
+2. Add format-specific extraction logic
+3. Update configuration and tests
+
+### Adding New Model Providers
+
+1. Implement the provider interface
+2. Add provider-specific configuration
+3. Update the provider factory
+4. Add comprehensive tests
+
+### Property-Based Testing
+
+The system uses hypothesis for property-based testing to validate universal correctness properties:
+
+```python
+@given(st.text(min_size=1))
+def test_document_chunk_content_preservation(content):
+    """Property: DocumentChunk should preserve content exactly."""
+    chunk = DocumentChunk(content=content, source_file="test.txt")
+    assert chunk.content == content
 ```
 
-Run the RAG pipeline:
-```bash
-python src/rag_pipeline.py
-```
-## 📈 Expected Outcome
+## Contributing
 
-A working AI-based digital twin capable of answering user queries using domain-specific knowledge with improved accuracy, relevance, and reduced hallucinations.
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality
+4. Ensure all tests pass
+5. Submit a pull request
 
+## License
 
-## 📚 Use Cases
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-- Enterprise knowledge management systems  
-- Intelligent document search  
-- AI assistants for internal documentation  
-- Digital twin applications for decision support  
+## Support
 
----
-
-## 🏁 Conclusion
-
-This project demonstrates the practical use of emerging AI technologies such as Retrieval-Augmented Generation and Vector Databases to build reliable, explainable, and knowledge-grounded intelligent systems.
+For questions and support, please refer to the project documentation or create an issue in the repository.
