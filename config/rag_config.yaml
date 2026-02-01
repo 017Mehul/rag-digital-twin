@@ -1,0 +1,57 @@
+# RAG Digital Twin Configuration File
+# This file contains all configurable parameters for the system
+
+# Model Configuration
+embedding:
+  provider: "openai"  # Options: openai, huggingface
+  model: "text-embedding-ada-002"
+  
+llm:
+  provider: "openai"  # Options: openai, huggingface
+  model: "gpt-3.5-turbo"
+
+# Document Processing Configuration
+document_processing:
+  chunk_size: 1000
+  chunk_overlap: 200
+  supported_formats: ["pdf", "txt"]
+  max_file_size_mb: 50
+
+# Vector Store Configuration
+vector_store:
+  index_type: "flat"  # Options: flat, ivf, hnsw
+  dimension: 1536  # Must match embedding model dimension
+  similarity_metric: "cosine"
+
+# Retrieval Configuration
+retrieval:
+  top_k_results: 5
+  similarity_threshold: 0.7
+  max_context_length: 4000
+
+# Response Generation Configuration
+response:
+  max_tokens: 500
+  temperature: 0.1
+  include_sources: true
+  max_sources: 3
+
+# System Configuration
+system:
+  batch_size: 10
+  max_retries: 3
+  timeout_seconds: 30
+  log_level: "INFO"
+
+# File Paths
+paths:
+  data_directory: "data"
+  embeddings_directory: "embeddings"
+  logs_directory: "logs"
+  config_directory: "config"
+
+# API Configuration (use environment variables for sensitive data)
+api:
+  openai_api_key: "${OPENAI_API_KEY}"
+  huggingface_api_key: "${HUGGINGFACE_API_KEY}"
+  rate_limit_requests_per_minute: 60
