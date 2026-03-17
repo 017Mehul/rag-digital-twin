@@ -81,7 +81,7 @@ def get_supported_file_types() -> List[str]:
     Returns:
         List of supported file extensions
     """
-    return ['.pdf', '.txt', '.md']
+    return ['.pdf', '.txt']
 
 
 def is_supported_file_type(file_path: str) -> bool:
@@ -113,8 +113,6 @@ def get_file_type(file_path: str) -> str:
     type_mapping = {
         '.pdf': 'pdf',
         '.txt': 'txt',
-        '.md': 'md',
-        '.markdown': 'md'
     }
     
     return type_mapping.get(extension, 'unknown')
