@@ -8,11 +8,13 @@ import json
 from pathlib import Path
 
 from src.document_processor import DocumentProcessor
+from src.embedding_generator import EmbeddingGenerator
 from src.exceptions import ErrorCode
 from src.models.rag_config import RAGConfig
 from src.models.document_chunk import DocumentChunk
 from src.models.embedding_metadata import EmbeddingMetadata
 from src.models.system_status import IngestionResults
+from src.providers import OpenAIEmbeddingProvider
 from src.utils.config_utils import load_config, create_default_config
 from src.utils.file_utils import ensure_directory, is_valid_file
 from src.utils.logging_utils import setup_logging, get_logger
@@ -156,8 +158,15 @@ class TestSystemIntegration:
         assert restored_chunk.chunk_id == chunk.chunk_id
 
     def test_document_processor_to_embedding_metadata_flow(self, temp_directory):
-        """Test document processing output flowing into embedding metadata creation."""
+        """Test document processing output flowing into embedding generation."""
         processor = DocumentProcessor(chunk_size=60, chunk_overlap=10)
+        generator = EmbeddingGenerator(
+            provider=OpenAIEmbeddingProvider(
+                model_name="text-embedding-3-small",
+                dimension=24,
+                mock_embeddings=True,
+            )
+        )
         file_path = Path(temp_directory) / "integration.txt"
         file_path.write_text(
             "This is a document used for integration testing. " * 6,
@@ -165,22 +174,20 @@ class TestSystemIntegration:
         )
 
         chunks = processor.process_document(str(file_path), {"title": "Integration Doc"})
+        generated = generator.generate_chunk_embeddings(chunks)
 
         assert chunks
         assert all(isinstance(chunk, DocumentChunk) for chunk in chunks)
         assert all(chunk.metadata["title"] == "Integration Doc" for chunk in chunks)
         assert all(chunk.metadata["file_name"] == "integration.txt" for chunk in chunks)
 
-        embedding_metadata = [
-            EmbeddingMetadata.from_document_chunk(chunk, "text-embedding-ada-002")
-            for chunk in chunks
-        ]
-
-        assert len(embedding_metadata) == len(chunks)
-        for chunk, metadata in zip(chunks, embedding_metadata):
+        assert len(generated) == len(chunks)
+        for result, chunk in zip(generated, chunks):
+            metadata = result["metadata"]
             assert metadata.chunk_id == chunk.chunk_id
             assert metadata.source_file == chunk.source_file
-            assert metadata.embedding_model == "text-embedding-ada-002"
+            assert metadata.embedding_model == "text-embedding-3-small"
+            assert len(result["embedding"]) == 24
 
     def test_document_processor_batch_results_map_to_ingestion_results(self, temp_directory):
         """Test batch processing outcomes can be represented in ingestion results."""
