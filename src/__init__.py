@@ -7,6 +7,7 @@ from .document_processor import DocumentProcessor
 from .embedding_generator import EmbeddingGenerator
 from .context_retriever import ContextRetriever
 from .query_processor import QueryProcessor
+from .response_generator import ResponseGenerator
 from .vector_store import VectorStore
 
 __version__ = "1.0.0"
@@ -18,4 +19,5 @@ __all__ = [
     "VectorStore",
     "QueryProcessor",
     "ContextRetriever",
+    "ResponseGenerator",
 ]

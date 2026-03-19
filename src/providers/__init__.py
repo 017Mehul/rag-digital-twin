@@ -7,9 +7,17 @@ from .embedding_provider import (
     HuggingFaceEmbeddingProvider,
     OpenAIEmbeddingProvider,
 )
+from .llm_provider import (
+    HuggingFaceLLMProvider,
+    LLMProvider,
+    OpenAILLMProvider,
+)
 
 __all__ = [
     "EmbeddingModel",
     "OpenAIEmbeddingProvider",
     "HuggingFaceEmbeddingProvider",
+    "LLMProvider",
+    "OpenAILLMProvider",
+    "HuggingFaceLLMProvider",
 ]

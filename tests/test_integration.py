@@ -9,12 +9,15 @@ from pathlib import Path
 
 from src.document_processor import DocumentProcessor
 from src.embedding_generator import EmbeddingGenerator
+from src.context_retriever import ContextRetriever
 from src.exceptions import ErrorCode
 from src.models.rag_config import RAGConfig
 from src.models.document_chunk import DocumentChunk
 from src.models.embedding_metadata import EmbeddingMetadata
 from src.models.system_status import IngestionResults
-from src.providers import OpenAIEmbeddingProvider
+from src.providers import OpenAIEmbeddingProvider, OpenAILLMProvider
+from src.query_processor import QueryProcessor
+from src.response_generator import ResponseGenerator
 from src.vector_store import VectorStore
 from src.utils.config_utils import load_config, create_default_config
 from src.utils.file_utils import ensure_directory, is_valid_file
@@ -253,6 +256,48 @@ class TestSystemIntegration:
         assert len(results) == 1
         assert results.metadata[0]["chunk"]["source_file"] == str(file_path)
         assert results.metadata[0]["embedding_metadata"]["embedding_model"] == "text-embedding-3-small"
+
+    def test_query_context_and_response_generation_flow(self, temp_directory):
+        """Test query processing through response generation with source attribution."""
+        processor = DocumentProcessor(chunk_size=80, chunk_overlap=20)
+        embedding_generator = EmbeddingGenerator(
+            provider=OpenAIEmbeddingProvider(
+                model_name="text-embedding-3-small",
+                dimension=32,
+                mock_embeddings=True,
+            )
+        )
+        vector_store = VectorStore(dimension=32, index_type="flat")
+        file_path = Path(temp_directory) / "response.txt"
+        file_path.write_text(
+            "Retrieval-augmented generation combines retrieval with language models.",
+            encoding="utf-8"
+        )
+
+        chunks = processor.process_document(str(file_path))
+        vector_store.add_documents(embedding_generator.generate_chunk_embeddings(chunks))
+
+        query_processor = QueryProcessor(
+            embedding_generator=embedding_generator,
+            vector_store=vector_store,
+            top_k_results=2,
+            similarity_threshold=0.0,
+        )
+        context_retriever = ContextRetriever(query_processor=query_processor, max_context_length=300)
+        response_generator = ResponseGenerator(
+            provider=OpenAILLMProvider(model_name="gpt-4o-mini", mock_responses=True)
+        )
+
+        context = context_retriever.retrieve_context("What does retrieval-augmented generation do?")
+        response = response_generator.generate_response(
+            "What does retrieval-augmented generation do?",
+            context,
+        )
+
+        assert response.context_used is True
+        assert response.sources == [str(file_path)]
+        assert "Sources:" in response.response_text
+        assert str(file_path) in response.response_text
     
     def test_configuration_file_loading(self):
         """Test loading the actual configuration file."""
