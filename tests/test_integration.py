@@ -15,6 +15,7 @@ from src.models.document_chunk import DocumentChunk
 from src.models.embedding_metadata import EmbeddingMetadata
 from src.models.system_status import IngestionResults
 from src.providers import OpenAIEmbeddingProvider
+from src.vector_store import VectorStore
 from src.utils.config_utils import load_config, create_default_config
 from src.utils.file_utils import ensure_directory, is_valid_file
 from src.utils.logging_utils import setup_logging, get_logger
@@ -222,6 +223,36 @@ class TestSystemIntegration:
         assert str(invalid_file) in ingestion_results.failed_files
         assert any(str(invalid_file) in error for error in ingestion_results.errors)
         assert any(ErrorCode.DOCUMENT_INVALID_FORMAT.value in error for error in ingestion_results.errors)
+
+    def test_document_embeddings_can_be_indexed_and_retrieved(self, temp_directory):
+        """Test the document processor, embedding generator, and vector store together."""
+        processor = DocumentProcessor(chunk_size=80, chunk_overlap=20)
+        generator = EmbeddingGenerator(
+            provider=OpenAIEmbeddingProvider(
+                model_name="text-embedding-3-small",
+                dimension=32,
+                mock_embeddings=True,
+            )
+        )
+        store = VectorStore(dimension=32, index_type="flat")
+
+        file_path = Path(temp_directory) / "knowledge.txt"
+        file_path.write_text(
+            "Vector databases support semantic retrieval. "
+            "FAISS can store and search embeddings efficiently.",
+            encoding="utf-8"
+        )
+
+        chunks = processor.process_document(str(file_path))
+        generated = generator.generate_chunk_embeddings(chunks)
+        store.add_documents(generated)
+
+        query_embedding = generator.generate_embedding("semantic retrieval with embeddings")
+        results = store.search(query_embedding, top_k=1)
+
+        assert len(results) == 1
+        assert results.metadata[0]["chunk"]["source_file"] == str(file_path)
+        assert results.metadata[0]["embedding_metadata"]["embedding_model"] == "text-embedding-3-small"
     
     def test_configuration_file_loading(self):
         """Test loading the actual configuration file."""
