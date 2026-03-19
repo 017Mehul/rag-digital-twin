@@ -54,6 +54,7 @@ class QueryResults:
     retrieved_chunks: List[DocumentChunk]
     relevance_scores: List[float]
     total_results: int
+    message: str = ""
     
     def __post_init__(self):
         """Validate query results after initialization."""
@@ -87,6 +88,7 @@ class RetrievedContext:
     source_chunks: List[DocumentChunk]
     total_tokens: int
     sources: List[str]
+    insufficient_context: bool = False
     
     def __post_init__(self):
         """Validate retrieved context after initialization."""
