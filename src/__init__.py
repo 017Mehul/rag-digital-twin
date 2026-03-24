@@ -7,6 +7,7 @@ from .document_processor import DocumentProcessor
 from .embedding_generator import EmbeddingGenerator
 from .context_retriever import ContextRetriever
 from .query_processor import QueryProcessor
+from .rag_pipeline import RAGPipeline
 from .response_generator import ResponseGenerator
 from .vector_store import VectorStore
 
@@ -20,4 +21,5 @@ __all__ = [
     "QueryProcessor",
     "ContextRetriever",
     "ResponseGenerator",
+    "RAGPipeline",
 ]
