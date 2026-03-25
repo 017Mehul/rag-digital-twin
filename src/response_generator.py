@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional
 from .exceptions import ErrorCode, ResponseGenerationError
 from .models.rag_config import RAGConfig
 from .models.search_results import GeneratedResponse, RetrievedContext
-from .providers import HuggingFaceLLMProvider, LLMProvider, OpenAILLMProvider
+from .providers import LLMProvider, ProviderFactory
 
 
 class ResponseGenerator:
@@ -44,10 +44,13 @@ class ResponseGenerator:
         insufficient_context_message: str = "I do not have enough relevant context to answer this confidently.",
     ) -> "ResponseGenerator":
         if provider is None:
-            provider = cls._create_provider(
+            merged_provider_config = dict(config.llm_provider_config)
+            merged_provider_config.update(provider_kwargs or {})
+            provider = ProviderFactory.create_llm_provider(
                 provider_name=config.llm_provider,
                 model_name=config.llm_model,
-                provider_kwargs=provider_kwargs,
+                provider_config=merged_provider_config,
+                fallback_providers=config.llm_fallbacks,
             )
 
         return cls(
@@ -55,25 +58,6 @@ class ResponseGenerator:
             max_response_tokens=config.max_response_tokens,
             temperature=config.temperature,
             insufficient_context_message=insufficient_context_message,
-        )
-
-    @staticmethod
-    def _create_provider(
-        provider_name: str,
-        model_name: str,
-        provider_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> LLMProvider:
-        kwargs = dict(provider_kwargs or {})
-
-        if provider_name == "openai":
-            return OpenAILLMProvider(model_name=model_name, **kwargs)
-        if provider_name == "huggingface":
-            return HuggingFaceLLMProvider(model_name=model_name, **kwargs)
-
-        raise ResponseGenerationError(
-            f"Unsupported LLM provider: {provider_name}",
-            ErrorCode.LLM_MODEL_NOT_FOUND,
-            model_name,
         )
 
     def get_provider_info(self) -> Dict[str, Any]:

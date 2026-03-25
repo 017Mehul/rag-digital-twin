@@ -7,6 +7,11 @@ from .embedding_provider import (
     HuggingFaceEmbeddingProvider,
     OpenAIEmbeddingProvider,
 )
+from .factory import (
+    FallbackEmbeddingProvider,
+    FallbackLLMProvider,
+    ProviderFactory,
+)
 from .llm_provider import (
     HuggingFaceLLMProvider,
     LLMProvider,
@@ -17,7 +22,10 @@ __all__ = [
     "EmbeddingModel",
     "OpenAIEmbeddingProvider",
     "HuggingFaceEmbeddingProvider",
+    "FallbackEmbeddingProvider",
     "LLMProvider",
     "OpenAILLMProvider",
     "HuggingFaceLLMProvider",
+    "FallbackLLMProvider",
+    "ProviderFactory",
 ]

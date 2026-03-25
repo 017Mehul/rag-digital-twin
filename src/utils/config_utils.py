@@ -115,8 +115,12 @@ def _flatten_config(config_data: Dict[str, Any]) -> Dict[str, Any]:
     mapping = {
         ('embedding', 'provider'): 'embedding_provider',
         ('embedding', 'model'): 'embedding_model',
+        ('embedding', 'provider_config'): 'embedding_provider_config',
+        ('embedding', 'fallbacks'): 'embedding_fallbacks',
         ('llm', 'provider'): 'llm_provider',
         ('llm', 'model'): 'llm_model',
+        ('llm', 'provider_config'): 'llm_provider_config',
+        ('llm', 'fallbacks'): 'llm_fallbacks',
         ('document_processing', 'chunk_size'): 'chunk_size',
         ('document_processing', 'chunk_overlap'): 'chunk_overlap',
         ('retrieval', 'top_k_results'): 'top_k_results',
@@ -139,7 +143,8 @@ def _flatten_config(config_data: Dict[str, Any]) -> Dict[str, Any]:
     
     # Handle direct mappings (for backward compatibility)
     direct_keys = [
-        'embedding_provider', 'embedding_model', 'llm_provider', 'llm_model',
+        'embedding_provider', 'embedding_model', 'embedding_provider_config', 'embedding_fallbacks',
+        'llm_provider', 'llm_model', 'llm_provider_config', 'llm_fallbacks',
         'chunk_size', 'chunk_overlap', 'top_k_results', 'similarity_threshold',
         'max_context_length', 'max_response_tokens', 'temperature',
         'batch_size', 'max_retries', 'timeout_seconds',

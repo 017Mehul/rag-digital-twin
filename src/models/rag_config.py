@@ -18,8 +18,12 @@ class RAGConfig:
     # Model Configuration
     embedding_provider: str = "openai"
     embedding_model: str = "text-embedding-ada-002"
+    embedding_provider_config: Dict[str, Any] = field(default_factory=dict)
+    embedding_fallbacks: List[Dict[str, Any]] = field(default_factory=list)
     llm_provider: str = "openai"
     llm_model: str = "gpt-3.5-turbo"
+    llm_provider_config: Dict[str, Any] = field(default_factory=dict)
+    llm_fallbacks: List[Dict[str, Any]] = field(default_factory=list)
     
     # Processing Configuration
     chunk_size: int = 1000
@@ -59,13 +63,30 @@ class RAGConfig:
             ValueError: If any configuration parameter is invalid
         """
         errors = []
-        
-        # Validate providers
-        valid_providers = ["openai", "huggingface"]
-        if self.embedding_provider not in valid_providers:
+
+        # Import lazily to avoid coupling model imports to provider initialization.
+        from src.providers import ProviderFactory
+
+        valid_embedding_providers = ProviderFactory.get_supported_embedding_providers()
+        valid_llm_providers = ProviderFactory.get_supported_llm_providers()
+
+        if self.embedding_provider not in valid_embedding_providers:
             errors.append(f"Invalid embedding provider: {self.embedding_provider}")
-        if self.llm_provider not in valid_providers:
+        if self.llm_provider not in valid_llm_providers:
             errors.append(f"Invalid LLM provider: {self.llm_provider}")
+        if not self.embedding_model:
+            errors.append("Embedding model must be specified")
+        if not self.llm_model:
+            errors.append("LLM model must be specified")
+
+        if not isinstance(self.embedding_provider_config, dict):
+            errors.append("Embedding provider config must be a dictionary")
+        if not isinstance(self.llm_provider_config, dict):
+            errors.append("LLM provider config must be a dictionary")
+        if not isinstance(self.embedding_fallbacks, list):
+            errors.append("Embedding fallbacks must be a list")
+        if not isinstance(self.llm_fallbacks, list):
+            errors.append("LLM fallbacks must be a list")
         
         # Validate numeric parameters
         if self.chunk_size <= 0:
@@ -93,6 +114,17 @@ class RAGConfig:
         
         if errors:
             raise ValueError("Configuration validation failed: " + "; ".join(errors))
+
+        ProviderFactory.validate_embedding_request(
+            provider_name=self.embedding_provider,
+            provider_config=self.embedding_provider_config,
+            fallback_providers=self.embedding_fallbacks,
+        )
+        ProviderFactory.validate_llm_request(
+            provider_name=self.llm_provider,
+            provider_config=self.llm_provider_config,
+            fallback_providers=self.llm_fallbacks,
+        )
         
         return True
     
@@ -101,8 +133,12 @@ class RAGConfig:
         return {
             "embedding_provider": self.embedding_provider,
             "embedding_model": self.embedding_model,
+            "embedding_provider_config": self.embedding_provider_config,
+            "embedding_fallbacks": self.embedding_fallbacks,
             "llm_provider": self.llm_provider,
             "llm_model": self.llm_model,
+            "llm_provider_config": self.llm_provider_config,
+            "llm_fallbacks": self.llm_fallbacks,
             "chunk_size": self.chunk_size,
             "chunk_overlap": self.chunk_overlap,
             "max_context_length": self.max_context_length,

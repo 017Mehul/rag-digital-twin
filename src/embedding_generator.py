@@ -13,8 +13,7 @@ from .models.embedding_metadata import EmbeddingMetadata
 from .models.rag_config import RAGConfig
 from .providers import (
     EmbeddingModel,
-    HuggingFaceEmbeddingProvider,
-    OpenAIEmbeddingProvider,
+    ProviderFactory,
 )
 
 
@@ -55,10 +54,13 @@ class EmbeddingGenerator:
         cache_size: int = 1000,
     ) -> "EmbeddingGenerator":
         if provider is None:
-            provider = cls._create_provider(
+            merged_provider_config = dict(config.embedding_provider_config)
+            merged_provider_config.update(provider_kwargs or {})
+            provider = ProviderFactory.create_embedding_provider(
                 provider_name=config.embedding_provider,
                 model_name=config.embedding_model,
-                provider_kwargs=provider_kwargs,
+                provider_config=merged_provider_config,
+                fallback_providers=config.embedding_fallbacks,
             )
 
         return cls(
@@ -66,25 +68,6 @@ class EmbeddingGenerator:
             batch_size=config.batch_size,
             max_retries=config.max_retries,
             cache_size=cache_size,
-        )
-
-    @staticmethod
-    def _create_provider(
-        provider_name: str,
-        model_name: str,
-        provider_kwargs: Optional[Dict[str, Any]] = None,
-    ) -> EmbeddingModel:
-        kwargs = dict(provider_kwargs or {})
-
-        if provider_name == "openai":
-            return OpenAIEmbeddingProvider(model_name=model_name, **kwargs)
-        if provider_name == "huggingface":
-            return HuggingFaceEmbeddingProvider(model_name=model_name, **kwargs)
-
-        raise EmbeddingGenerationError(
-            f"Unsupported embedding provider: {provider_name}",
-            ErrorCode.EMBEDDING_MODEL_NOT_FOUND,
-            model_name,
         )
 
     def get_provider_info(self) -> Dict[str, Any]:
