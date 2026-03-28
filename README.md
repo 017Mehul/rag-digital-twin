@@ -1,187 +1,143 @@
 # RAG Digital Twin
 
-A sophisticated AI-powered system implementing Retrieval-Augmented Generation (RAG) to provide accurate, context-aware responses from domain-specific knowledge bases using vector databases and large language models.
+RAG Digital Twin is a configurable Retrieval-Augmented Generation system for ingesting domain documents, indexing them in a vector store, and answering grounded questions with source attribution.
 
-## Overview
+## What It Includes
 
-The RAG Digital Twin follows a 6-step pipeline architecture:
-
-1. **Document Processing**: Extract and chunk text from PDF/TXT documents
-2. **Embedding Generation**: Convert text chunks into vector embeddings
-3. **Vector Storage**: Store embeddings in FAISS vector database
-4. **Query Processing**: Process user queries and perform similarity search
-5. **Context Retrieval**: Retrieve and format relevant context
-6. **Response Generation**: Generate context-aware responses using LLMs
-
-## Features
-
-- **Multi-format Document Support**: PDF and TXT document processing
-- **Flexible Model Support**: OpenAI and Hugging Face embedding/LLM providers
-- **Scalable Vector Storage**: FAISS-based vector database with multiple index types
-- **Property-Based Testing**: Comprehensive correctness validation using hypothesis
-- **Configurable Pipeline**: Extensive configuration options for all components
-- **Error Handling**: Robust error handling and recovery mechanisms
-- **Monitoring & Logging**: Comprehensive system monitoring and audit trails
+- PDF and TXT document ingestion with chunking and validation
+- Pluggable embedding and LLM providers with fallback support
+- FAISS-backed vector storage with persistence
+- Query processing, context retrieval, and grounded response generation
+- Monitoring, audit trails, and property-based test coverage
+- Command-line workflows for ingestion and interactive querying
 
 ## Project Structure
 
-```
+```text
 rag-digital-twin/
-├── data/                    # Input documents
-│   ├── processed/          # Processed document chunks
-│   └── raw/               # Original documents
-├── embeddings/            # Vector store files
-├── src/                   # Source code
-│   ├── models/           # Data models
-│   ├── providers/        # LLM and embedding providers
-│   └── utils/           # Utility functions
-├── config/              # Configuration files
-├── logs/               # System logs
-├── tests/              # Test files
-└── requirements.txt    # Python dependencies
+|-- config/
+|   |-- rag_config.yaml
+|   `-- rag_config.local.yaml
+|-- data/
+|   |-- processed/
+|   `-- raw/
+|-- docs/
+|   `-- api.md
+|-- embeddings/
+|-- logs/
+|-- src/
+|   |-- models/
+|   |-- providers/
+|   `-- utils/
+`-- tests/
 ```
 
 ## Installation
 
-1. **Clone the repository**:
-   ```bash
-   git clone <repository-url>
-   cd rag-digital-twin
-   ```
+```bash
+git clone <repository-url>
+cd rag-digital-twin
+pip install -r requirements.txt
+pip install -e .
+```
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+For provider-backed runs, copy `.env.example` to `.env` and set the required API keys. For offline/local validation, use the mock-enabled config at `config/rag_config.local.yaml`.
 
-3. **Set up environment variables**:
-   ```bash
-   cp .env.example .env
-   # Edit .env with your API keys
-   ```
+## Configuration Templates
 
-4. **Configure the system**:
-   ```bash
-   # Edit config/rag_config.yaml as needed
-   ```
+- `config/rag_config.yaml`: production-oriented template with environment-variable API keys and fallback providers
+- `config/rag_config.local.yaml`: local mock mode for testing the full CLI flow without external services
 
-## Quick Start
+You can also generate a sample config file from the CLI:
 
-### 1. Document Ingestion
+```bash
+rag-ingest --write-config-template config/generated_config.yaml
+```
+
+## CLI Usage
+
+### Ingest Documents
+
+Ingest individual files or entire directories:
+
+```bash
+rag-ingest --config config/rag_config.local.yaml data/raw
+rag-ingest --config config/rag_config.yaml docs/handbook.pdf notes.txt
+```
+
+Useful options:
+
+- `--index-type {flat,ivf,hnsw}` to choose the vector-store index when a new store is created
+- `--no-recursive` to only inspect the top level of supplied directories
+- `--no-persist` to test ingestion without writing the vector store to disk
+
+### Query the Knowledge Base
+
+Run a single query:
+
+```bash
+rag-query --config config/rag_config.local.yaml --query "What are the key policies?"
+```
+
+Start an interactive session:
+
+```bash
+rag-query --config config/rag_config.local.yaml
+```
+
+Interactive commands:
+
+- `/help` shows the available commands
+- `/history` prints recent query history from the current session
+- `/status` shows health and pipeline metrics
+- `/session` shows the session file location
+- `/clear` clears the current session history
+- `/exit` or `/quit` saves the session and closes the prompt
+
+Session history is saved as JSON in `logs/sessions/` by default, or to a custom path with `--session-file`.
+
+### Run Without Installed Entry Points
+
+```bash
+python -m src.cli ingest --config config/rag_config.local.yaml data/raw
+python -m src.cli query --config config/rag_config.local.yaml --query "What was indexed?"
+```
+
+## Python API
 
 ```python
 from src.rag_pipeline import RAGPipeline
-from src.models.rag_config import RAGConfig
+from src.utils.config_utils import load_config
 
-# Load configuration
-config = RAGConfig.from_json_file("config/rag_config.yaml")
-
-# Initialize pipeline
+config = load_config("config/rag_config.local.yaml")
 pipeline = RAGPipeline(config)
 
-# Ingest documents
-results = pipeline.ingest_documents(["data/raw/document1.pdf", "data/raw/document2.txt"])
-print(f"Processed {results.successful_documents} documents")
+pipeline.ingest_documents(["data/raw/reference.txt"])
+response = pipeline.query("What does the reference say about deployment?")
+
+print(response.response_text)
+print(response.sources)
 ```
 
-### 2. Query Processing
-
-```python
-# Query the system
-response = pipeline.query("What is the main topic of the documents?")
-print(f"Response: {response.response_text}")
-print(f"Sources: {response.sources}")
-```
-
-## Configuration
-
-The system is configured through `config/rag_config.yaml`. Key configuration sections:
-
-- **Model Configuration**: Embedding and LLM provider settings
-- **Processing Configuration**: Document chunking and processing parameters
-- **Retrieval Configuration**: Similarity search and context retrieval settings
-- **System Configuration**: Performance and operational parameters
+More detailed integration examples are available in [docs/api.md](docs/api.md).
 
 ## Testing
 
-The project includes comprehensive testing with both unit tests and property-based tests:
+Run the full suite:
 
 ```bash
-# Run all tests
-pytest
-
-# Run with coverage
-pytest --cov=src
-
-# Run only property-based tests
-pytest -m "hypothesis"
+pytest -q
 ```
 
-## Core Data Models
+Run targeted CLI tests:
 
-### DocumentChunk
-Represents processed document segments with metadata and source information.
-
-### EmbeddingMetadata
-Tracks embedding information and maintains relationships to source content.
-
-### RAGConfig
-Centralized configuration management for all system parameters.
-
-### SearchResults
-Results from vector similarity search operations.
-
-### GeneratedResponse
-LLM-generated responses with source attribution and confidence metrics.
-
-## Error Handling
-
-The system includes comprehensive error handling with:
-
-- **Structured Exceptions**: RAGException base class with error codes and context
-- **Component-Specific Errors**: Specialized exceptions for each system component
-- **Error Recovery**: Automatic retry logic and fallback mechanisms
-- **Logging Integration**: Detailed error logging for debugging and monitoring
-
-## Development
-
-### Adding New Document Formats
-
-1. Extend the DocumentProcessor class
-2. Add format-specific extraction logic
-3. Update configuration and tests
-
-### Adding New Model Providers
-
-1. Implement the provider interface
-2. Add provider-specific configuration
-3. Update the provider factory
-4. Add comprehensive tests
-
-### Property-Based Testing
-
-The system uses hypothesis for property-based testing to validate universal correctness properties:
-
-```python
-@given(st.text(min_size=1))
-def test_document_chunk_content_preservation(content):
-    """Property: DocumentChunk should preserve content exactly."""
-    chunk = DocumentChunk(content=content, source_file="test.txt")
-    assert chunk.content == content
+```bash
+pytest -q tests/test_cli.py
 ```
 
-## Contributing
+## Development Notes
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Ensure all tests pass
-5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Support
-
-For questions and support, please refer to the project documentation or create an issue in the repository.
+- `load_config()` supports YAML and JSON files.
+- Provider-specific settings live under `embedding.provider_config` and `llm.provider_config`.
+- Fallback chains are configured with `embedding.fallbacks` and `llm.fallbacks`.
+- The CLI uses the same `RAGPipeline` and provider abstractions as the Python API, so scripts and manual runs share one execution path.

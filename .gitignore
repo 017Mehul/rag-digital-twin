@@ -1,6 +1,5 @@
 # Spec and design files (keep private)
 .kiro/
-*.md
 
 # Python
 __pycache__/

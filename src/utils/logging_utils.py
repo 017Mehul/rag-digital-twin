@@ -38,7 +38,9 @@ def setup_logging(
     logger.setLevel(getattr(logging, log_level.upper()))
     
     # Clear existing handlers
-    logger.handlers.clear()
+    for handler in logger.handlers[:]:
+        handler.close()
+        logger.removeHandler(handler)
     
     # Console handler
     console_handler = logging.StreamHandler()

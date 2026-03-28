@@ -6,7 +6,7 @@ import os
 import yaml
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from src.models.rag_config import RAGConfig
 from src.exceptions import ConfigurationError, ErrorCode
 
@@ -56,6 +56,8 @@ def load_config(config_path: str) -> RAGConfig:
         # Create RAGConfig instance
         return RAGConfig.from_dict(resolved_config)
         
+    except ConfigurationError:
+        raise
     except yaml.YAMLError as e:
         raise ConfigurationError(
             f"Invalid YAML configuration: {e}",
@@ -158,7 +160,7 @@ def _flatten_config(config_data: Dict[str, Any]) -> Dict[str, Any]:
     return flattened
 
 
-def _resolve_environment_variables(config_data: Dict[str, Any]) -> Dict[str, Any]:
+def _resolve_environment_variables(config_data: Any) -> Any:
     """
     Resolve environment variable references in configuration values.
     
@@ -168,26 +170,26 @@ def _resolve_environment_variables(config_data: Dict[str, Any]) -> Dict[str, Any
     Returns:
         Configuration with resolved environment variables
     """
-    resolved = {}
-    
-    for key, value in config_data.items():
-        if isinstance(value, str) and value.startswith('${') and value.endswith('}'):
-            # Extract environment variable name
-            env_var = value[2:-1]
-            resolved_value = os.getenv(env_var)
-            
-            if resolved_value is None:
-                raise ConfigurationError(
-                    f"Environment variable not found: {env_var}",
-                    ErrorCode.CONFIG_MISSING_REQUIRED,
-                    env_var
-                )
-            
-            resolved[key] = resolved_value
-        else:
-            resolved[key] = value
-    
-    return resolved
+    if isinstance(config_data, dict):
+        return {key: _resolve_environment_variables(value) for key, value in config_data.items()}
+
+    if isinstance(config_data, list):
+        return [_resolve_environment_variables(value) for value in config_data]
+
+    if isinstance(config_data, str) and config_data.startswith('${') and config_data.endswith('}'):
+        env_var = config_data[2:-1]
+        resolved_value = os.getenv(env_var)
+
+        if resolved_value is None:
+            raise ConfigurationError(
+                f"Environment variable not found: {env_var}",
+                ErrorCode.CONFIG_MISSING_REQUIRED,
+                env_var
+            )
+
+        return resolved_value
+
+    return config_data
 
 
 def get_default_config_path() -> str:
@@ -207,11 +209,74 @@ def create_default_config(output_path: str) -> None:
     Args:
         output_path: Path where to create the configuration file
     """
-    default_config = RAGConfig()
-    
-    # Create directory if it doesn't exist
     config_file = Path(output_path)
     config_file.parent.mkdir(parents=True, exist_ok=True)
-    
-    # Save as JSON for simplicity
-    default_config.to_json_file(output_path)
+
+    default_config = {
+        "embedding": {
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "provider_config": {
+                "api_key": "${OPENAI_API_KEY}",
+                "dimension": 1536,
+            },
+            "fallbacks": [
+                {
+                    "provider": "huggingface",
+                    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
+                    "config": {
+                        "dimension": 1536,
+                    },
+                }
+            ],
+        },
+        "llm": {
+            "provider": "openai",
+            "model": "gpt-4o-mini",
+            "provider_config": {
+                "api_key": "${OPENAI_API_KEY}",
+            },
+            "fallbacks": [
+                {
+                    "provider": "huggingface",
+                    "model_name": "distilgpt2",
+                    "config": {},
+                }
+            ],
+        },
+        "document_processing": {
+            "chunk_size": 1000,
+            "chunk_overlap": 200,
+        },
+        "retrieval": {
+            "top_k_results": 5,
+            "similarity_threshold": 0.7,
+            "max_context_length": 4000,
+        },
+        "response": {
+            "max_tokens": 500,
+            "temperature": 0.1,
+        },
+        "system": {
+            "batch_size": 10,
+            "max_retries": 3,
+            "timeout_seconds": 30,
+        },
+        "paths": {
+            "data_directory": "data",
+            "embeddings_directory": "embeddings",
+            "logs_directory": "logs",
+        },
+    }
+
+    with open(config_file, "w", encoding="utf-8") as handle:
+        if config_file.suffix.lower() in [".yaml", ".yml"]:
+            yaml.safe_dump(default_config, handle, sort_keys=False)
+        elif config_file.suffix.lower() == ".json":
+            json.dump(default_config, handle, indent=2)
+        else:
+            raise ConfigurationError(
+                f"Unsupported configuration file format: {config_file.suffix}",
+                ErrorCode.CONFIG_INVALID,
+                "file_format"
+            )

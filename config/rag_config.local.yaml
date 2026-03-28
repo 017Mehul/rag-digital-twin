@@ -1,0 +1,39 @@
+# Local development configuration that runs without external API credentials.
+
+embedding:
+  provider: "openai"
+  model: "text-embedding-3-small"
+  provider_config:
+    mock_embeddings: true
+    dimension: 64
+  fallbacks: []
+
+llm:
+  provider: "openai"
+  model: "gpt-4o-mini"
+  provider_config:
+    mock_responses: true
+  fallbacks: []
+
+document_processing:
+  chunk_size: 500
+  chunk_overlap: 100
+
+retrieval:
+  top_k_results: 5
+  similarity_threshold: 0.0
+  max_context_length: 2000
+
+response:
+  max_tokens: 300
+  temperature: 0.1
+
+system:
+  batch_size: 8
+  max_retries: 1
+  timeout_seconds: 15
+
+paths:
+  data_directory: "data"
+  embeddings_directory: "embeddings"
+  logs_directory: "logs"
