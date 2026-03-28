@@ -5,6 +5,7 @@ Main RAG pipeline orchestration with monitoring, audit logging, and recovery.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -56,6 +57,8 @@ class RAGPipeline:
         self.error_handler = ErrorHandler(self.logger)
         self.system_status = SystemStatus(health=SystemHealth.UNKNOWN)
         self.audit_trail: List[Dict[str, Any]] = []
+        self._component_lock = threading.RLock()
+        self._status_lock = threading.RLock()
         self.started_at = time.perf_counter()
         self.embedding_provider_kwargs = dict(embedding_provider_kwargs or {})
         self.llm_provider_kwargs = dict(llm_provider_kwargs or {})
@@ -112,61 +115,75 @@ class RAGPipeline:
             return results
 
         try:
-            batch_result = self.document_processor.process_batch(file_paths, metadata_by_file=metadata_by_file)
+            with self._component_lock:
+                batch_result = self.document_processor.process_batch(file_paths, metadata_by_file=metadata_by_file)
 
-            processed_documents = batch_result["processed_documents"]
-            failed_documents = batch_result["failed_documents"]
-            all_chunks = []
+                processed_documents = batch_result["processed_documents"]
+                failed_documents = batch_result["failed_documents"]
+                total_chunk_count = sum(len(chunks) for chunks in processed_documents.values())
 
-            for file_path, chunks in processed_documents.items():
-                results.add_successful_document(file_path, len(chunks))
-                all_chunks.extend(chunks)
-            for file_path, error_message in failed_documents.items():
-                results.add_failed_document(file_path, error_message)
+                for file_path, error_message in failed_documents.items():
+                    results.add_failed_document(file_path, error_message)
 
-            if all_chunks:
-                self._record_audit(
-                    "embedding_generation_started",
-                    {"chunk_count": len(all_chunks)},
-                )
-                entries = self.embedding_generator.generate_chunk_embeddings(all_chunks)
-                results.total_embeddings = len(entries)
-
-                self.vector_store.add_documents(entries)
-                self._record_audit(
-                    "vector_store_updated",
-                    {
-                        "added_embeddings": len(entries),
-                        "vector_store_size": len(self.vector_store),
-                    },
-                )
-
-                if persist:
-                    self.vector_store.save(self.config.embeddings_directory)
+                if total_chunk_count:
                     self._record_audit(
-                        "vector_store_persisted",
-                        {"directory": self.config.embeddings_directory},
+                        "embedding_generation_started",
+                        {"chunk_count": total_chunk_count},
                     )
-            else:
-                self._record_audit("ingestion_no_chunks", {"reason": "no valid chunks were produced"})
+
+                    for file_path, chunks in processed_documents.items():
+                        try:
+                            entries = self.embedding_generator.generate_chunk_embeddings(chunks)
+                            self.vector_store.add_documents(entries)
+                            results.add_successful_document(file_path, len(chunks))
+                            results.total_embeddings += len(entries)
+                        except Exception as exc:
+                            handled = self.error_handler.handle_error(
+                                exc,
+                                {"operation": "ingest_document", "file_path": file_path},
+                            )
+                            results.add_failed_document(file_path, handled["message"])
+                            self._record_system_error(handled["message"])
+                            self._record_audit(
+                                "ingestion_document_failed",
+                                {"file_path": file_path, **handled},
+                                level="error",
+                            )
+
+                    if results.total_embeddings > 0:
+                        self._record_audit(
+                            "vector_store_updated",
+                            {
+                                "added_embeddings": results.total_embeddings,
+                                "vector_store_size": len(self.vector_store),
+                            },
+                        )
+
+                        if persist:
+                            self.vector_store.save(self.config.embeddings_directory)
+                            self._record_audit(
+                                "vector_store_persisted",
+                                {"directory": self.config.embeddings_directory},
+                            )
+                    else:
+                        self._record_audit(
+                            "ingestion_no_chunks",
+                            {"reason": "no valid embeddings were produced"},
+                        )
+                else:
+                    self._record_audit("ingestion_no_chunks", {"reason": "no valid chunks were produced"})
         except Exception as exc:
             handled = self.error_handler.handle_error(exc, {"operation": "ingest_documents"})
             results.errors.append(handled["message"])
-            self.system_status.record_error(handled["message"])
+            self._record_system_error(handled["message"])
             self._record_audit("ingestion_failed", handled, level="error")
         finally:
             results.processing_time = time.perf_counter() - start_time
+            self._increment_metric("documents_ingested_total", float(results.successful_documents))
+            self._increment_metric("chunks_ingested_total", float(results.total_chunks))
             self._update_metrics(
                 last_ingestion_seconds=results.processing_time,
                 last_ingestion_documents=float(results.total_documents),
-                documents_ingested_total=float(
-                    self.system_status.performance_metrics.get("documents_ingested_total", 0.0)
-                    + results.successful_documents
-                ),
-                chunks_ingested_total=float(
-                    self.system_status.performance_metrics.get("chunks_ingested_total", 0.0)
-                    + results.total_chunks
-                ),
                 vector_store_size=float(len(self.vector_store)),
             )
             self._refresh_system_status()
@@ -184,19 +201,30 @@ class RAGPipeline:
         Process a single real-time query through retrieval and generation.
         """
         start_time = time.perf_counter()
+
+        with self._component_lock:
+            query_processor = self.query_processor
+            context_retriever = self.context_retriever
+            response_generator = self.response_generator
+            vector_store = self.vector_store
+            max_context_length = self.config.max_context_length
+            active_top_k = k if k is not None else query_processor.top_k_results
+            active_threshold = threshold if threshold is not None else query_processor.similarity_threshold
+
         self._record_audit(
             "query_started",
             {
                 "query": user_query[:200] if isinstance(user_query, str) else str(user_query),
-                "top_k": k if k is not None else self.query_processor.top_k_results,
-                "threshold": threshold if threshold is not None else self.query_processor.similarity_threshold,
+                "top_k": active_top_k,
+                "threshold": active_threshold,
             },
         )
 
-        if self.vector_store.is_empty():
+        if vector_store.is_empty():
             response = self._build_insufficient_context_response(
                 "I do not have any indexed knowledge available yet.",
                 generation_time=time.perf_counter() - start_time,
+                provider=response_generator.provider,
             )
             self._record_audit(
                 "query_insufficient_context",
@@ -207,7 +235,7 @@ class RAGPipeline:
             return response
 
         try:
-            query_results = self.query_processor.process_query(user_query, k=k, threshold=threshold)
+            query_results = query_processor.process_query(user_query, k=k, threshold=threshold)
             self._record_audit(
                 "query_processed",
                 {
@@ -216,9 +244,9 @@ class RAGPipeline:
                 },
             )
 
-            context = self.context_retriever.retrieve_context_from_results(
+            context = context_retriever.retrieve_context_from_results(
                 query_results,
-                max_context_length=self.config.max_context_length,
+                max_context_length=max_context_length,
             )
             self._record_audit(
                 "context_retrieved",
@@ -229,7 +257,7 @@ class RAGPipeline:
                 },
             )
 
-            response = self.response_generator.generate_response(user_query, context)
+            response = response_generator.generate_response(user_query, context)
             self._record_audit(
                 "response_generated",
                 {
@@ -240,11 +268,12 @@ class RAGPipeline:
             )
         except Exception as exc:
             handled = self.error_handler.handle_error(exc, {"operation": "query", "query": user_query})
-            self.system_status.record_error(handled["message"])
+            self._record_system_error(handled["message"])
             self._record_audit("query_failed", handled, level="error")
             response = self._build_insufficient_context_response(
                 f"I could not complete the full retrieval pipeline for this query. {handled['message']}",
                 generation_time=time.perf_counter() - start_time,
+                provider=response_generator.provider,
             )
         finally:
             self._finalize_query_metrics(start_time)
@@ -264,12 +293,9 @@ class RAGPipeline:
         self._record_audit("batch_query_started", {"query_count": len(queries)})
         responses = [self.query(query, k=k, threshold=threshold) for query in queries]
         elapsed = time.perf_counter() - start_time
+        self._increment_metric("batch_queries_processed_total", float(len(queries)))
         self._update_metrics(
             last_batch_query_seconds=elapsed,
-            batch_queries_processed_total=float(
-                self.system_status.performance_metrics.get("batch_queries_processed_total", 0.0)
-                + len(queries)
-            ),
         )
         self._refresh_system_status()
         self._record_audit(
@@ -284,46 +310,47 @@ class RAGPipeline:
         """
         self._record_audit("configuration_update_started", {"payload_type": type(config_or_updates).__name__})
 
-        try:
-            if isinstance(config_or_updates, RAGConfig):
-                new_config = config_or_updates
-                new_config.validate()
-            elif isinstance(config_or_updates, dict):
-                new_config = self.config.update(**config_or_updates)
-            else:
+        with self._component_lock:
+            try:
+                if isinstance(config_or_updates, RAGConfig):
+                    new_config = config_or_updates
+                    new_config.validate()
+                elif isinstance(config_or_updates, dict):
+                    new_config = self.config.update(**config_or_updates)
+                else:
+                    raise ConfigurationError(
+                        "Configuration updates must be a RAGConfig or dictionary",
+                        ErrorCode.CONFIG_INVALID,
+                    )
+            except ConfigurationError:
+                raise
+            except ValueError as exc:
                 raise ConfigurationError(
-                    "Configuration updates must be a RAGConfig or dictionary",
-                    ErrorCode.CONFIG_INVALID,
+                    f"Configuration update failed validation: {exc}",
+                    ErrorCode.CONFIG_VALIDATION_FAILED,
+                    cause=exc,
+                ) from exc
+
+            previous_dimension = self.embedding_generator.provider.dimension
+            self.config = new_config
+            self.document_processor = self._create_document_processor()
+            self.embedding_generator = self._create_embedding_generator()
+
+            if self.embedding_generator.provider.dimension != previous_dimension:
+                self.vector_store = self._create_vector_store()
+                self._record_audit(
+                    "vector_store_reset",
+                    {"reason": "embedding dimension changed during configuration update"},
+                    level="warning",
                 )
-        except ConfigurationError:
-            raise
-        except ValueError as exc:
-            raise ConfigurationError(
-                f"Configuration update failed validation: {exc}",
-                ErrorCode.CONFIG_VALIDATION_FAILED,
-                cause=exc,
-            ) from exc
 
-        previous_dimension = self.embedding_generator.provider.dimension
-        self.config = new_config
-        self.document_processor = self._create_document_processor()
-        self.embedding_generator = self._create_embedding_generator()
-
-        if self.embedding_generator.provider.dimension != previous_dimension:
-            self.vector_store = self._create_vector_store()
-            self._record_audit(
-                "vector_store_reset",
-                {"reason": "embedding dimension changed during configuration update"},
-                level="warning",
-            )
-
-        self.query_processor = self._create_query_processor()
-        self.context_retriever = self._create_context_retriever()
-        self.response_generator = self._create_response_generator()
-        self._synchronize_dependencies()
-        self._refresh_system_status()
-        self._record_audit("configuration_updated", self.config.to_dict())
-        return self.config
+            self.query_processor = self._create_query_processor()
+            self.context_retriever = self._create_context_retriever()
+            self.response_generator = self._create_response_generator()
+            self._synchronize_dependencies()
+            self._refresh_system_status()
+            self._record_audit("configuration_updated", self.config.to_dict())
+            return self.config
 
     def get_system_status(self) -> SystemStatus:
         """
@@ -350,7 +377,8 @@ class RAGPipeline:
         """
         Return a copy of the audit trail recorded for pipeline operations.
         """
-        return [dict(entry) for entry in self.audit_trail]
+        with self._status_lock:
+            return [dict(entry) for entry in self.audit_trail]
 
     def _create_document_processor(self) -> DocumentProcessor:
         return DocumentProcessor(
@@ -385,7 +413,7 @@ class RAGPipeline:
                 return store
             except Exception as exc:
                 handled = self.error_handler.handle_error(exc, {"operation": "load_vector_store"})
-                self.system_status.record_error(handled["message"])
+                self._record_system_error(handled["message"])
                 self._record_audit("vector_store_load_failed", handled, level="warning")
 
         store = self._create_vector_store()
@@ -424,41 +452,40 @@ class RAGPipeline:
 
     def _refresh_system_status(self) -> None:
         uptime = time.perf_counter() - self.started_at
-        self.system_status.timestamp = datetime.now()
-        self.system_status.uptime_seconds = uptime
+        with self._component_lock:
+            embedding_provider = self.embedding_generator.provider.get_config()["provider"]
+            vector_store_size = float(len(self.vector_store))
+            vector_store_status = f"{self.vector_store.backend}:{int(vector_store_size)}"
+            response_provider = self.response_generator.provider.get_config()["provider"]
 
-        self.system_status.add_component_status("document_processor", "ready")
-        self.system_status.add_component_status(
-            "embedding_generator",
-            self.embedding_generator.provider.get_config()["provider"],
-        )
-        self.system_status.add_component_status(
-            "vector_store",
-            f"{self.vector_store.backend}:{len(self.vector_store)}",
-        )
-        self.system_status.add_component_status("query_processor", "ready")
-        self.system_status.add_component_status("context_retriever", "ready")
-        self.system_status.add_component_status(
-            "response_generator",
-            self.response_generator.provider.get_config()["provider"],
-        )
+        with self._status_lock:
+            self.system_status.timestamp = datetime.now()
+            self.system_status.uptime_seconds = uptime
 
-        self._update_metrics(
-            vector_store_size=float(len(self.vector_store)),
-            audit_event_count=float(len(self.audit_trail)),
-            error_count=float(self.system_status.error_count),
-        )
+            self.system_status.add_component_status("document_processor", "ready")
+            self.system_status.add_component_status("embedding_generator", embedding_provider)
+            self.system_status.add_component_status("vector_store", vector_store_status)
+            self.system_status.add_component_status("query_processor", "ready")
+            self.system_status.add_component_status("context_retriever", "ready")
+            self.system_status.add_component_status("response_generator", response_provider)
 
-        if self.system_status.error_count == 0:
-            self.system_status.health = SystemHealth.HEALTHY
-        elif self.system_status.error_count < 3:
-            self.system_status.health = SystemHealth.DEGRADED
-        else:
-            self.system_status.health = SystemHealth.UNHEALTHY
+            self._update_metrics(
+                vector_store_size=vector_store_size,
+                audit_event_count=float(len(self.audit_trail)),
+                error_count=float(self.system_status.error_count),
+            )
+
+            if self.system_status.error_count == 0:
+                self.system_status.health = SystemHealth.HEALTHY
+            elif self.system_status.error_count < 3:
+                self.system_status.health = SystemHealth.DEGRADED
+            else:
+                self.system_status.health = SystemHealth.UNHEALTHY
 
     def _update_metrics(self, **metrics: float) -> None:
-        for name, value in metrics.items():
-            self.system_status.add_performance_metric(name, float(value))
+        with self._status_lock:
+            for name, value in metrics.items():
+                self.system_status.add_performance_metric(name, float(value))
 
     def _record_audit(self, event: str, details: Dict[str, Any], level: str = "info") -> None:
         entry = {
@@ -467,30 +494,44 @@ class RAGPipeline:
             "level": level,
             "details": dict(details),
         }
-        self.audit_trail.append(entry)
+        with self._status_lock:
+            self.audit_trail.append(entry)
 
         log_method = getattr(self.logger, level, self.logger.info)
         log_method("%s | %s", event, details)
 
-    def _build_insufficient_context_response(self, message: str, generation_time: float) -> GeneratedResponse:
-        provider = self.response_generator.provider
+    def _build_insufficient_context_response(
+        self,
+        message: str,
+        generation_time: float,
+        provider: Optional[Any] = None,
+    ) -> GeneratedResponse:
+        active_provider = provider or self.response_generator.provider
         return GeneratedResponse(
             response_text=message,
             sources=[],
             confidence_score=0.0,
             context_used=False,
-            token_count=provider.count_tokens(message),
-            model_used=provider.model_name,
+            token_count=active_provider.count_tokens(message),
+            model_used=active_provider.model_name,
             generation_time=max(generation_time, 0.0),
         )
 
     def _finalize_query_metrics(self, start_time: float) -> None:
         elapsed = time.perf_counter() - start_time
+        self._increment_metric("queries_processed_total", 1.0)
         self._update_metrics(
             last_query_seconds=elapsed,
-            queries_processed_total=float(
-                self.system_status.performance_metrics.get("queries_processed_total", 0.0) + 1
-            ),
             vector_store_size=float(len(self.vector_store)),
         )
         self._refresh_system_status()
+
+    def _record_system_error(self, message: str) -> None:
+        with self._status_lock:
+            self.system_status.record_error(message)
+
+    def _increment_metric(self, name: str, amount: float) -> float:
+        with self._status_lock:
+            updated_value = float(self.system_status.performance_metrics.get(name, 0.0) + amount)
+            self.system_status.add_performance_metric(name, updated_value)
+            return updated_value

@@ -22,7 +22,8 @@ rag-digital-twin/
 |   |-- processed/
 |   `-- raw/
 |-- docs/
-|   `-- api.md
+|   |-- api.md
+|   `-- validation.md
 |-- embeddings/
 |-- logs/
 |-- src/
@@ -134,6 +135,15 @@ Run targeted CLI tests:
 ```bash
 pytest -q tests/test_cli.py
 ```
+
+Run integration and performance validation:
+
+```bash
+pytest -q tests/test_integration.py
+pytest -q tests/test_performance.py
+```
+
+For requirement traceability, benchmark thresholds, and final validation criteria, see [docs/validation.md](docs/validation.md).
 
 ## Development Notes
 

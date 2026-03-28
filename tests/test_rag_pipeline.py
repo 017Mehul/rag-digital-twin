@@ -296,14 +296,12 @@ class TestRAGPipelineProperties:
 
         assert isinstance(ingestion, IngestionResults)
         assert isinstance(response, GeneratedResponse)
-        assert events == [
-            "document_processing",
-            "embedding_generation",
-            "vector_storage",
-            "query_processing",
-            "context_retrieval",
-            "response_generation",
-        ]
+        expected_events = ["document_processing"]
+        for _ in range(file_count):
+            expected_events.extend(["embedding_generation", "vector_storage"])
+        expected_events.extend(["query_processing", "context_retrieval", "response_generation"])
+
+        assert events == expected_events
 
     @PROPERTY_TEST_SETTINGS
     @given(stage=st.sampled_from(["ingestion", "query"]))

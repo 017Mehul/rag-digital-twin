@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import threading
 from typing import Any, Dict, List, Optional
 
 import numpy as np
@@ -46,6 +47,7 @@ class VectorStore:
         self.hnsw_m = hnsw_m
         self.metadata_store: List[Dict[str, Any]] = []
         self._vector_data = np.empty((0, self.dimension), dtype=np.float32)
+        self._lock = threading.RLock()
         self.backend = "faiss" if faiss is not None else "numpy"
         self.index = self._create_index()
 
@@ -69,12 +71,13 @@ class VectorStore:
         vectors = self._prepare_vectors(embeddings)
 
         try:
-            self._train_if_needed(vectors)
-            if self.backend == "faiss":
-                self.index.add(vectors)
-            else:
-                self._vector_data = np.vstack([self._vector_data, vectors])
-            self.metadata_store.extend(dict(item) for item in metadata)
+            with self._lock:
+                self._train_if_needed(vectors)
+                if self.backend == "faiss":
+                    self.index.add(vectors)
+                else:
+                    self._vector_data = np.vstack([self._vector_data, vectors])
+                self.metadata_store.extend(dict(item) for item in metadata)
         except VectorStoreError:
             raise
         except Exception as exc:
@@ -129,38 +132,39 @@ class VectorStore:
         """
         if top_k <= 0:
             raise ValueError("top_k must be positive")
-        if self.is_empty():
-            return SearchResults(indices=[], distances=[], metadata=[])
+        with self._lock:
+            if not self.metadata_store:
+                return SearchResults(indices=[], distances=[], metadata=[])
 
-        query = self._prepare_vectors([query_embedding])
-        limit = min(top_k, len(self.metadata_store))
+            query = self._prepare_vectors([query_embedding])
+            limit = min(top_k, len(self.metadata_store))
 
-        try:
-            if self.backend == "faiss":
-                distances, indices = self.index.search(query, limit)
-            else:
-                scores = np.dot(self._vector_data, query[0])
-                ranked_indices = np.argsort(scores)[::-1][:limit]
-                distances = np.asarray([[float(scores[index]) for index in ranked_indices]], dtype=np.float32)
-                indices = np.asarray([[int(index) for index in ranked_indices]], dtype=np.int64)
-        except Exception as exc:
-            raise VectorStoreError(
-                f"Vector similarity search failed: {exc}",
-                ErrorCode.VECTOR_STORE_SEARCH_FAILED,
-                self.index_type,
-                cause=exc,
-            ) from exc
+            try:
+                if self.backend == "faiss":
+                    distances, indices = self.index.search(query, limit)
+                else:
+                    scores = np.dot(self._vector_data, query[0])
+                    ranked_indices = np.argsort(scores)[::-1][:limit]
+                    distances = np.asarray([[float(scores[index]) for index in ranked_indices]], dtype=np.float32)
+                    indices = np.asarray([[int(index) for index in ranked_indices]], dtype=np.int64)
+            except Exception as exc:
+                raise VectorStoreError(
+                    f"Vector similarity search failed: {exc}",
+                    ErrorCode.VECTOR_STORE_SEARCH_FAILED,
+                    self.index_type,
+                    cause=exc,
+                ) from exc
 
-        result_indices: List[int] = []
-        result_distances: List[float] = []
-        result_metadata: List[Dict[str, Any]] = []
+            result_indices: List[int] = []
+            result_distances: List[float] = []
+            result_metadata: List[Dict[str, Any]] = []
 
-        for index, distance in zip(indices[0].tolist(), distances[0].tolist()):
-            if index < 0:
-                continue
-            result_indices.append(index)
-            result_distances.append(float(distance))
-            result_metadata.append(dict(self.metadata_store[index]))
+            for index, distance in zip(indices[0].tolist(), distances[0].tolist()):
+                if index < 0:
+                    continue
+                result_indices.append(index)
+                result_distances.append(float(distance))
+                result_metadata.append(dict(self.metadata_store[index]))
 
         return SearchResults(
             indices=result_indices,
@@ -179,20 +183,21 @@ class VectorStore:
         metadata_path = output_dir / "vector_store_metadata.json"
 
         try:
-            if self.backend == "faiss":
-                faiss.write_index(self.index, str(index_path))
-            else:
-                np.save(vectors_path, self._vector_data)
-            metadata_payload = {
-                "dimension": self.dimension,
-                "index_type": self.index_type,
-                "nlist": self.nlist,
-                "hnsw_m": self.hnsw_m,
-                "metadata_store": self.metadata_store,
-                "vector_count": len(self.metadata_store),
-                "backend": self.backend,
-            }
-            metadata_path.write_text(json.dumps(metadata_payload, indent=2), encoding="utf-8")
+            with self._lock:
+                if self.backend == "faiss":
+                    faiss.write_index(self.index, str(index_path))
+                else:
+                    np.save(vectors_path, self._vector_data)
+                metadata_payload = {
+                    "dimension": self.dimension,
+                    "index_type": self.index_type,
+                    "nlist": self.nlist,
+                    "hnsw_m": self.hnsw_m,
+                    "metadata_store": list(self.metadata_store),
+                    "vector_count": len(self.metadata_store),
+                    "backend": self.backend,
+                }
+                metadata_path.write_text(json.dumps(metadata_payload, indent=2), encoding="utf-8")
         except Exception as exc:
             raise VectorStoreError(
                 f"Failed to persist vector store: {exc}",
@@ -265,38 +270,41 @@ class VectorStore:
         """
         Validate the loaded store for corruption and metadata consistency.
         """
-        try:
-            index_count = int(self.index.ntotal) if self.backend == "faiss" else int(len(self._vector_data))
-        except Exception as exc:
-            raise VectorStoreError(
-                f"Unable to inspect vector store index: {exc}",
-                ErrorCode.VECTOR_STORE_INDEX_CORRUPTED,
-                self.index_type,
-                cause=exc,
-            ) from exc
-
-        if index_count != len(self.metadata_store):
-            raise VectorStoreError(
-                "Vector store metadata count does not match index size",
-                ErrorCode.VECTOR_STORE_INDEX_CORRUPTED,
-                self.index_type,
-            )
-
-        for item in self.metadata_store:
-            if not isinstance(item, dict):
+        with self._lock:
+            try:
+                index_count = int(self.index.ntotal) if self.backend == "faiss" else int(len(self._vector_data))
+            except Exception as exc:
                 raise VectorStoreError(
-                    "Vector store metadata contains invalid entries",
+                    f"Unable to inspect vector store index: {exc}",
+                    ErrorCode.VECTOR_STORE_INDEX_CORRUPTED,
+                    self.index_type,
+                    cause=exc,
+                ) from exc
+
+            if index_count != len(self.metadata_store):
+                raise VectorStoreError(
+                    "Vector store metadata count does not match index size",
                     ErrorCode.VECTOR_STORE_INDEX_CORRUPTED,
                     self.index_type,
                 )
 
+            for item in self.metadata_store:
+                if not isinstance(item, dict):
+                    raise VectorStoreError(
+                        "Vector store metadata contains invalid entries",
+                        ErrorCode.VECTOR_STORE_INDEX_CORRUPTED,
+                        self.index_type,
+                    )
+
         return True
 
     def is_empty(self) -> bool:
-        return len(self.metadata_store) == 0
+        with self._lock:
+            return len(self.metadata_store) == 0
 
     def __len__(self) -> int:
-        return len(self.metadata_store)
+        with self._lock:
+            return len(self.metadata_store)
 
     def _create_index(self):
         if faiss is None:

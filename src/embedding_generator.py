@@ -5,6 +5,7 @@ Embedding generation orchestration with provider abstraction, caching, and retri
 from __future__ import annotations
 
 from collections import OrderedDict
+import threading
 from typing import Any, Callable, Dict, List, Optional
 
 from .exceptions import EmbeddingGenerationError, ErrorCode
@@ -44,6 +45,7 @@ class EmbeddingGenerator:
         self.max_retries = max_retries
         self.cache_size = cache_size
         self._embedding_cache: "OrderedDict[str, List[float]]" = OrderedDict()
+        self._cache_lock = threading.RLock()
 
     @classmethod
     def from_config(
@@ -80,9 +82,10 @@ class EmbeddingGenerator:
         """
         Generate an embedding for a single text with caching and retries.
         """
-        if text in self._embedding_cache:
-            self._embedding_cache.move_to_end(text)
-            return list(self._embedding_cache[text])
+        with self._cache_lock:
+            if text in self._embedding_cache:
+                self._embedding_cache.move_to_end(text)
+                return list(self._embedding_cache[text])
 
         vector = self._with_retries(
             operation=lambda: self.provider.embed_text(text),
@@ -152,13 +155,14 @@ class EmbeddingGenerator:
         uncached_texts: List[str] = []
         results: List[Optional[List[float]]] = [None] * len(texts)
 
-        for index, text in enumerate(texts):
-            if text in self._embedding_cache:
-                self._embedding_cache.move_to_end(text)
-                results[index] = list(self._embedding_cache[text])
-            else:
-                uncached_indices.append(index)
-                uncached_texts.append(text)
+        with self._cache_lock:
+            for index, text in enumerate(texts):
+                if text in self._embedding_cache:
+                    self._embedding_cache.move_to_end(text)
+                    results[index] = list(self._embedding_cache[text])
+                else:
+                    uncached_indices.append(index)
+                    uncached_texts.append(text)
 
         if uncached_texts:
             generated_vectors = self._with_retries(
@@ -207,7 +211,8 @@ class EmbeddingGenerator:
         if self.cache_size == 0:
             return
 
-        self._embedding_cache[text] = list(vector)
-        self._embedding_cache.move_to_end(text)
-        while len(self._embedding_cache) > self.cache_size:
-            self._embedding_cache.popitem(last=False)
+        with self._cache_lock:
+            self._embedding_cache[text] = list(vector)
+            self._embedding_cache.move_to_end(text)
+            while len(self._embedding_cache) > self.cache_size:
+                self._embedding_cache.popitem(last=False)
