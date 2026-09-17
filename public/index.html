@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="RAG Digital Twin — grounded answers with source attribution." />
+    <title>RAG Digital Twin</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div class="eyebrow">KNOWLEDGE INTELLIGENCE</div>
+        <h1>Ask your knowledge base.<br /><span>Get grounded answers.</span></h1>
+        <p class="subtitle">A retrieval-augmented workspace powered by your existing RAG Digital Twin pipeline.</p>
+      </section>
+
+      <section class="workspace" aria-label="RAG query workspace">
+        <div class="workspace-top">
+          <div>
+            <div class="section-label">LIVE QUERY</div>
+            <h2>What would you like to know?</h2>
+          </div>
+          <div id="status" class="status"><span></span> Ready</div>
+        </div>
+
+        <form id="query-form">
+          <textarea id="question" rows="4" required placeholder="Ask a question about your indexed documents..."></textarea>
+          <div class="form-bottom">
+            <div class="hint">Answers are generated through the configured RAG pipeline.</div>
+            <button type="submit" id="submit">Ask Digital Twin <span>↗</span></button>
+          </div>
+        </form>
+
+        <div id="error" class="message error" hidden></div>
+        <article id="answer-card" class="answer-card" hidden>
+          <div class="answer-header"><span class="section-label">RESPONSE</span><span id="time"></span></div>
+          <div id="answer" class="answer"></div>
+          <div class="meta-row"><span id="model"></span><span id="confidence"></span></div>
+          <div class="sources-block">
+            <div class="section-label">SOURCES</div>
+            <ul id="sources"></ul>
+          </div>
+        </article>
+      </section>
+      <footer>RAG Digital Twin · Built for grounded, traceable retrieval</footer>
+    </main>
+    <script src="/app.js" defer></script>
+  </body>
+</html>
