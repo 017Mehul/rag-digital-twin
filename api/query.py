@@ -14,11 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.rag_pipeline import RAGPipeline
-from src.utils.config_utils import load_config
-
 app = FastAPI(title="RAG Digital Twin API", version="1.0.0")
-_pipeline: RAGPipeline | None = None
+_pipeline: Any = None
 
 
 class QueryRequest(BaseModel):
@@ -27,9 +24,16 @@ class QueryRequest(BaseModel):
     threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
-def get_pipeline() -> RAGPipeline:
+def get_pipeline() -> Any:
+    """Initialize the heavy RAG pipeline lazily inside the request lifecycle."""
     global _pipeline
     if _pipeline is None:
+        # Keep heavyweight ML imports out of module import time so Vercel can
+        # load the FastAPI function and return a useful JSON error if a model
+        # dependency or environment variable is unavailable.
+        from src.rag_pipeline import RAGPipeline
+        from src.utils.config_utils import load_config
+
         config_path = os.getenv("RAG_CONFIG_PATH", "config/rag_config.yaml")
         _pipeline = RAGPipeline(load_config(str(ROOT / config_path)))
     return _pipeline
@@ -51,7 +55,7 @@ def health() -> dict[str, Any]:
     try:
         return get_pipeline().run_health_check()
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"RAG service unavailable: {exc}") from exc
+        raise HTTPException(status_code=503, detail=f"RAG service unavailable: {type(exc).__name__}: {exc}") from exc
 
 
 @app.post("/api/query")
@@ -60,4 +64,4 @@ def query(request: QueryRequest) -> dict[str, Any]:
         response = get_pipeline().query(request.query, k=request.k, threshold=request.threshold)
         return response_payload(response)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Query failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"Query failed: {type(exc).__name__}: {exc}") from exc
