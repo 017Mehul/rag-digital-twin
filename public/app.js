@@ -15,6 +15,97 @@ function setText(selector, value) {
   if (element) element.textContent = value;
 }
 
+function clearMockContent() {
+  document.querySelectorAll('.table-row').forEach((row) => row.remove());
+  document.querySelector('.source-list')?.replaceChildren();
+  const sourceTitle = document.querySelector('.source-title');
+  if (sourceTitle) sourceTitle.textContent = 'Sources (0)';
+  const sampleAnswer = document.querySelector('#sample-answer');
+  if (sampleAnswer) sampleAnswer.innerHTML = '<span class="muted">Ask a question to see a grounded answer from your indexed documents.</span>';
+  document.querySelectorAll('.bars > div').forEach((bar) => {
+    bar.style.height = '0%';
+    const label = bar.querySelector('em');
+    if (label) label.textContent = '—';
+  });
+  const legend = document.querySelector('.legend');
+  if (legend) legend.replaceChildren();
+  const donut = document.querySelector('.donut');
+  if (donut) donut.style.background = 'conic-gradient(#d9deeb 0 100%)';
+}
+
+function formatDate(value) {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? String(value).slice(0, 10) : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function renderDocuments(documents) {
+  const table = document.querySelector('.table');
+  if (!table) return;
+  table.querySelectorAll('.table-row, .empty-row').forEach((row) => row.remove());
+  if (!documents?.length) {
+    const empty = document.createElement('div');
+    empty.className = 'table-row empty-row';
+    empty.innerHTML = '<span>No documents indexed yet</span>';
+    table.appendChild(empty);
+    return;
+  }
+  documents.slice(0, 8).forEach((doc) => {
+    const row = document.createElement('div');
+    row.className = 'table-row';
+    row.innerHTML = `<span>▣ ${escapeHtml(doc.name || doc.path || 'Unnamed document')}</span><span>${escapeHtml(doc.type || 'OTHER')}</span><span>—</span><span>${escapeHtml(formatDate(doc.date_added))}</span><span class="indexed">● ${escapeHtml(doc.status || 'Indexed')}</span>`;
+    table.appendChild(row);
+  });
+}
+
+function renderTypes(typeCounts) {
+  const entries = Object.entries(typeCounts || {}).sort((a, b) => b[1] - a[1]);
+  const total = entries.reduce((sum, [, count]) => sum + count, 0);
+  const palette = ['pdf', 'txt', 'docx', 'md', 'other'];
+  const legend = document.querySelector('.legend');
+  const donut = document.querySelector('.donut');
+  if (!legend || !donut) return;
+  legend.replaceChildren();
+  if (!total) {
+    donut.style.background = 'conic-gradient(#d9deeb 0 100%)';
+    return;
+  }
+  let cursor = 0;
+  const segments = [];
+  entries.forEach(([type, count], index) => {
+    const percentage = (count / total) * 100;
+    const next = cursor + percentage;
+    segments.push(`#${['5278ee', '36ad83', '8c62df', 'ffbd50', '9aa8c3'][index % 5]} ${cursor}% ${next}%`);
+    cursor = next;
+    const li = document.createElement('li');
+    li.innerHTML = `<i class="dot ${palette[index % palette.length]}"></i>${escapeHtml(type)} <b>${Math.round(percentage)}%</b>`;
+    legend.appendChild(li);
+  });
+  donut.style.background = `conic-gradient(${segments.join(', ')})`;
+}
+
+function renderMonthlyChart(documents) {
+  const bars = [...document.querySelectorAll('.bars > div')];
+  if (!bars.length) return;
+  const now = new Date();
+  const months = Array.from({ length: bars.length }, (_, index) => new Date(now.getFullYear(), now.getMonth() - (bars.length - 1 - index), 1));
+  const counts = months.map((month) => documents.filter((doc) => {
+    const date = new Date(doc.date_added);
+    return !Number.isNaN(date.getTime()) && date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
+  }).length);
+  const max = Math.max(...counts, 1);
+  bars.forEach((bar, index) => {
+    bar.style.height = `${(counts[index] / max) * 80}%`;
+    const label = bar.querySelector('em');
+    if (label) label.textContent = months[index].toLocaleDateString(undefined, { month: 'short' });
+    bar.title = `${counts[index]} document(s)`;
+  });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
+}
+
 async function loadDashboardMetrics() {
   try {
     const response = await fetch('/api/dashboard', { headers: { Accept: 'application/json' } });
@@ -30,24 +121,26 @@ async function loadDashboardMetrics() {
       const value = card.querySelector('strong');
       const subtitle = card.querySelector('small');
       if (value) value.textContent = values[index] ?? '—';
-      if (subtitle) {
-        subtitle.textContent = subtitles[index];
-        subtitle.classList.toggle('muted', index === 3);
-      }
+      if (subtitle) subtitle.textContent = subtitles[index];
     });
 
     const live = document.querySelector('.live');
     if (live) live.innerHTML = `<i></i> ${data.healthy ? 'Live' : 'Degraded'}`;
-
-    const rows = document.querySelectorAll('.table-row');
-    if (!data.documents_list?.length) {
-      rows.forEach((row) => { row.innerHTML = '<span colspan="5">No documents indexed yet</span>'; });
-    }
+    const documents = data.documents_list || [];
+    renderDocuments(documents);
+    renderTypes(data.document_types || {});
+    renderMonthlyChart(documents);
   } catch (err) {
-    const cards = document.querySelectorAll('.stat-card strong');
-    cards.forEach((card) => { card.textContent = '—'; });
+    document.querySelectorAll('.stat-card strong').forEach((card) => { card.textContent = '—'; });
     const live = document.querySelector('.live');
     if (live) live.innerHTML = '<i></i> Offline';
+    const table = document.querySelector('.table');
+    if (table && !table.querySelector('.empty-row')) {
+      const empty = document.createElement('div');
+      empty.className = 'table-row empty-row';
+      empty.innerHTML = '<span>Live document data unavailable</span>';
+      table.appendChild(empty);
+    }
     console.warn('Dashboard metrics could not be loaded:', err.message);
   }
 }
@@ -69,14 +162,18 @@ form?.addEventListener('submit', async (event) => {
     let data;
     try { data = JSON.parse(raw); } catch { throw new Error(raw || `Server returned HTTP ${response.status}`); }
     if (!response.ok) throw new Error(data.detail || data.error || 'The query could not be completed.');
-    document.querySelector('#answer').textContent = data.response_text || data.answer || 'No response returned.';
-    document.querySelector('#time').textContent = data.generation_time ? `${Number(data.generation_time).toFixed(2)}s` : '';
-    document.querySelector('#model').textContent = data.model_used ? `Model: ${data.model_used}` : '';
-    document.querySelector('#confidence').textContent = data.confidence_score != null ? `Confidence: ${Math.round(data.confidence_score * 100)}%` : '';
+    setText('#answer', data.response_text || data.answer || 'No response returned.');
+    setText('#time', data.generation_time ? `${Number(data.generation_time).toFixed(2)}s` : '');
+    setText('#model', data.model_used ? `Model: ${data.model_used}` : '');
+    setText('#confidence', data.confidence_score != null ? `Confidence: ${Math.round(data.confidence_score * 100)}%` : '');
     const sources = document.querySelector('#sources');
     if (sources) {
       sources.replaceChildren();
-      (data.sources || []).forEach((source) => { const li = document.createElement('li'); li.textContent = typeof source === 'string' ? source : JSON.stringify(source); sources.appendChild(li); });
+      (data.sources || []).forEach((source) => {
+        const li = document.createElement('li');
+        li.textContent = typeof source === 'string' ? source : JSON.stringify(source);
+        sources.appendChild(li);
+      });
     }
     if (answerCard) answerCard.hidden = false;
     loadDashboardMetrics();
@@ -95,8 +192,7 @@ document.querySelectorAll('[data-section]').forEach((button) => {
   });
 });
 
-document.querySelector('#theme')?.addEventListener('click', () => {
-  document.body.classList.toggle('dark-preview');
-});
+document.querySelector('#theme')?.addEventListener('click', () => document.body.classList.toggle('dark-preview'));
 
+clearMockContent();
 loadDashboardMetrics();
