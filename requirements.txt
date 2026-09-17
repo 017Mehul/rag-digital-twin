@@ -9,6 +9,7 @@ sentence-transformers>=2.2.0
 # Web API
 fastapi>=0.110.0
 pydantic>=2.0.0
+python-multipart>=0.0.9
 
 # Document processing
 PyPDF2>=3.0.0
