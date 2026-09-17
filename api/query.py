@@ -81,7 +81,21 @@ def dashboard() -> dict[str, Any]:
 @app.post("/api/query")
 def query(request: QueryRequest) -> dict[str, Any]:
     try:
-        response = get_pipeline().query(request.query, k=request.k, threshold=request.threshold)
+        pipeline = get_pipeline()
+        status = pipeline.get_system_status()
+        metrics = dict(status.performance_metrics)
+        documents = int(metrics.get("documents_ingested_total", 0))
+        vector_store_size = int(metrics.get("vector_store_size", 0))
+
+        if documents <= 0 or vector_store_size <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No documents added yet. Please add a document first from the Ingest Documents section.",
+            )
+
+        response = pipeline.query(request.query, k=request.k, threshold=request.threshold)
         return response_payload(response)
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Query failed: {type(exc).__name__}: {exc}") from exc
