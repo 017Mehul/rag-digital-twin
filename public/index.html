@@ -1,50 +1,52 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="RAG Digital Twin — grounded answers with source attribution." />
-    <title>RAG Digital Twin</title>
-    <link rel="stylesheet" href="/styles.css" />
-  </head>
-  <body>
-    <main class="shell">
-      <section class="hero">
-        <div class="eyebrow">KNOWLEDGE INTELLIGENCE</div>
-        <h1>Ask your knowledge base.<br /><span>Get grounded answers.</span></h1>
-        <p class="subtitle">A retrieval-augmented workspace powered by your existing RAG Digital Twin pipeline.</p>
-      </section>
-
-      <section class="workspace" aria-label="RAG query workspace">
-        <div class="workspace-top">
-          <div>
-            <div class="section-label">LIVE QUERY</div>
-            <h2>What would you like to know?</h2>
-          </div>
-          <div id="status" class="status"><span></span> Ready</div>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="RAG Digital Twin workspace" />
+  <title>RAG Digital Twin · Dashboard</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">♧</div><div><strong>RAG Digital Twin</strong><span>Your Knowledge. Amplified.</span></div></div>
+      <nav class="nav" aria-label="Primary navigation">
+        <button class="nav-item active" data-section="Dashboard">⌂ <span>Dashboard</span></button>
+        <button class="nav-item" data-section="Ingest Documents">▤ <span>Ingest Documents</span></button>
+        <button class="nav-item" data-section="Document Library">▥ <span>Document Library</span></button>
+        <button class="nav-item" data-section="Query">⌕ <span>Query</span></button>
+        <button class="nav-item" data-section="Sources">▧ <span>Sources</span></button>
+        <button class="nav-item" data-section="History">◷ <span>History</span></button>
+        <button class="nav-item" data-section="Status">◴ <span>Status</span></button>
+        <button class="nav-item" data-section="Settings">⚙ <span>Settings</span></button>
+      </nav>
+      <div class="sidebar-card"><b>Turn your documents<br/>into a smart AI assistant.</b><p>✓ Ingest</p><p>✓ Understand</p><p>✓ Get grounded answers</p></div>
+      <div class="sidebar-quote">“Knowledge becomes<br/>more powerful when it’s shared.”<div class="quote-line"></div></div>
+    </aside>
+    <main class="main">
+      <header class="topbar"><div class="search">⌕ <input placeholder="Search documents, queries..." aria-label="Search" /></div><button class="icon-button" id="theme">☼</button><div class="profile">MG</div><div class="live"><i></i> Live</div></header>
+      <section class="content">
+        <div class="welcome"><div><div class="welcome-kicker">✦</div><h1>Welcome back, Mehul!</h1><p>Your AI knowledge assistant is ready.</p></div><div class="welcome-art">“From documents to decisions.<br/>Powered by AI.”</div></div>
+        <div class="stats-grid">
+          <div class="stat-card"><div class="stat-icon purple">▤</div><div><strong>24</strong><span>Documents</span><small>+3 this week</small></div></div>
+          <div class="stat-card"><div class="stat-icon green">▤</div><div><strong>1,248</strong><span>Chunks Indexed</span><small class="muted">FAISS Vector Store</small></div></div>
+          <div class="stat-card"><div class="stat-icon blue">▱</div><div><strong>186</strong><span>Questions Asked</span><small>+12 today</small></div></div>
+          <div class="stat-card"><div class="stat-icon pink">◷</div><div><strong>98%</strong><span>System Uptime</span><small class="muted">All systems operational</small></div></div>
         </div>
-
-        <form id="query-form">
-          <textarea id="question" rows="4" required placeholder="Ask a question about your indexed documents..."></textarea>
-          <div class="form-bottom">
-            <div class="hint">Answers are generated through the configured RAG pipeline.</div>
-            <button type="submit" id="submit">Ask Digital Twin <span>↗</span></button>
+        <div class="dashboard-grid">
+          <div class="left-column">
+            <div class="panel chart-panel"><div class="panel-heading"><h2>Knowledge Base Overview</h2><div class="tabs"><button class="selected">Documents</button><button>Queries</button></div></div><div class="chart"><div class="y-labels"><span>200</span><span>150</span><span>100</span><span>50</span><span>0</span></div><div class="bars"><div style="height:25%"><em>Jan</em></div><div style="height:40%"><em>Feb</em></div><div style="height:53%"><em>Mar</em></div><div style="height:60%"><em>Apr</em></div><div style="height:67%"><em>May</em></div><div style="height:53%"><em>Jun</em></div><div style="height:80%"><em>Jul</em></div></div></div></div>
+            <div class="panel types-panel"><div class="panel-heading"><h2>Document Types</h2></div><div class="donut-row"><div class="donut"></div><ul class="legend"><li><i class="dot pdf"></i>PDF <b>45%</b></li><li><i class="dot txt"></i>TXT <b>25%</b></li><li><i class="dot docx"></i>DOCX <b>15%</b></li><li><i class="dot md"></i>MD <b>10%</b></li><li><i class="dot other"></i>Other <b>5%</b></li></ul></div></div>
+            <div class="panel recent"><div class="panel-heading"><h2>Recent Documents</h2><button class="link-btn">View All →</button></div><div class="table"><div class="table-head"><span>Name</span><span>Type</span><span>Size</span><span>Date Added</span><span>Status</span></div><div class="table-row"><span>▣ employee_handbook.pdf</span><span>PDF</span><span>2.4 MB</span><span>Jul 12, 2024</span><span class="indexed">● Indexed</span></div><div class="table-row"><span>▣ company_policies.pdf</span><span>PDF</span><span>1.8 MB</span><span>Jul 10, 2024</span><span class="indexed">● Indexed</span></div><div class="table-row"><span>▤ product_manual.txt</span><span>TXT</span><span>320 KB</span><span>Jul 8, 2024</span><span class="indexed">● Indexed</span></div><div class="table-row"><span>▣ technical_docs.pdf</span><span>PDF</span><span>4.1 MB</span><span>Jul 5, 2024</span><span class="indexed">● Indexed</span></div><div class="table-row"><span>▤ meeting_notes.txt</span><span>TXT</span><span>210 KB</span><span>Jul 2, 2024</span><span class="indexed">● Indexed</span></div></div></div>
+            <div class="quick-grid"><button class="quick-card" data-section="Ingest Documents">💡 <span><b>Quick Start</b><small>Ingest your documents and start asking questions.</small></span>→</button><button class="quick-card" data-section="Documentation">▤ <span><b>Documentation</b><small>API reference and integration guides.</small></span>→</button><button class="quick-card" data-section="Developer Tools">⌘ <span><b>Developer Tools</b><small>Access configuration and advanced settings.</small></span>→</button></div>
           </div>
-        </form>
-
-        <div id="error" class="message error" hidden></div>
-        <article id="answer-card" class="answer-card" hidden>
-          <div class="answer-header"><span class="section-label">RESPONSE</span><span id="time"></span></div>
-          <div id="answer" class="answer"></div>
-          <div class="meta-row"><span id="model"></span><span id="confidence"></span></div>
-          <div class="sources-block">
-            <div class="section-label">SOURCES</div>
-            <ul id="sources"></ul>
-          </div>
-        </article>
+          <aside class="query-panel panel"><div class="panel-heading"><div><h2>Ask Your Documents</h2><p>Get accurate, grounded answers with source citations.</p></div></div><div class="chat user-chat"><div class="avatar purple-bg">◯</div><div class="bubble">What are the key policies mentioned in the employee handbook?<small>10:24 AM</small></div></div><div class="chat assistant-chat"><div class="avatar green-bg">♧</div><div class="bubble" id="sample-answer">The employee handbook outlines several key policies including:<ol><li><b>Code of Conduct</b> – Expectations for professional behavior and workplace ethics.</li><li><b>Remote Work Policy</b> – Guidelines for flexible work arrangements and communication.</li><li><b>Leave Policy</b> – Details on paid time off, sick leave, and parental leave.</li><li><b>Data Security Policy</b> – Rules for handling confidential information.</li></ol><small>10:24 AM</small></div></div><div class="source-title">Sources (3)</div><div class="source-list"><div>▣ <span>employee_handbook.pdf<small>Page 4–6</small></span>›</div><div>▣ <span>hr_policies.pdf<small>Page 12–14</small></span>›</div><div>▣ <span>company_guidelines.pdf<small>Page 8</small></span>›</div></div><form id="query-form" class="follow-up"><input id="question" required placeholder="Ask a follow-up question..."/><button type="submit">➤</button></form><div id="error" class="message error" hidden></div><div id="answer-card" hidden><div id="answer"></div><div id="time"></div><div id="model"></div><div id="confidence"></div><ul id="sources"></ul></div></aside>
+        </div>
+        <footer>RAG Digital Twin · Built for grounded, traceable retrieval</footer>
       </section>
-      <footer>RAG Digital Twin · Built for grounded, traceable retrieval</footer>
     </main>
-    <script src="/app.js" defer></script>
-  </body>
+  </div>
+  <script src="/app.js" defer></script>
+</body>
 </html>
