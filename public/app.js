@@ -1,198 +1,97 @@
-const form = document.querySelector('#query-form');
-const question = document.querySelector('#question');
-const submit = form?.querySelector('button[type="submit"]');
-const error = document.querySelector('#error');
-const answerCard = document.querySelector('#answer-card');
+(() => {
+  const $ = (selector) => document.querySelector(selector);
+  const $$ = (selector) => [...document.querySelectorAll(selector)];
 
-function setBusy(busy) {
-  if (!submit) return;
-  submit.disabled = busy;
-  submit.textContent = busy ? '…' : '➤';
-}
-
-function setText(selector, value) {
-  const element = document.querySelector(selector);
-  if (element) element.textContent = value;
-}
-
-function clearMockContent() {
-  document.querySelectorAll('.table-row').forEach((row) => row.remove());
-  document.querySelector('.source-list')?.replaceChildren();
-  const sourceTitle = document.querySelector('.source-title');
-  if (sourceTitle) sourceTitle.textContent = 'Sources (0)';
-  const sampleAnswer = document.querySelector('#sample-answer');
-  if (sampleAnswer) sampleAnswer.innerHTML = '<span class="muted">Ask a question to see a grounded answer from your indexed documents.</span>';
-  document.querySelectorAll('.bars > div').forEach((bar) => {
-    bar.style.height = '0%';
-    const label = bar.querySelector('em');
-    if (label) label.textContent = '—';
-  });
-  const legend = document.querySelector('.legend');
-  if (legend) legend.replaceChildren();
-  const donut = document.querySelector('.donut');
-  if (donut) donut.style.background = 'conic-gradient(#d9deeb 0 100%)';
-}
-
-function formatDate(value) {
-  if (!value) return '—';
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? String(value).slice(0, 10) : date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function renderDocuments(documents) {
-  const table = document.querySelector('.table');
-  if (!table) return;
-  table.querySelectorAll('.table-row, .empty-row').forEach((row) => row.remove());
-  if (!documents?.length) {
-    const empty = document.createElement('div');
-    empty.className = 'table-row empty-row';
-    empty.innerHTML = '<span>No documents indexed yet</span>';
-    table.appendChild(empty);
-    return;
-  }
-  documents.slice(0, 8).forEach((doc) => {
-    const row = document.createElement('div');
-    row.className = 'table-row';
-    row.innerHTML = `<span>▣ ${escapeHtml(doc.name || doc.path || 'Unnamed document')}</span><span>${escapeHtml(doc.type || 'OTHER')}</span><span>—</span><span>${escapeHtml(formatDate(doc.date_added))}</span><span class="indexed">● ${escapeHtml(doc.status || 'Indexed')}</span>`;
-    table.appendChild(row);
-  });
-}
-
-function renderTypes(typeCounts) {
-  const entries = Object.entries(typeCounts || {}).sort((a, b) => b[1] - a[1]);
-  const total = entries.reduce((sum, [, count]) => sum + count, 0);
-  const palette = ['pdf', 'txt', 'docx', 'md', 'other'];
-  const legend = document.querySelector('.legend');
-  const donut = document.querySelector('.donut');
-  if (!legend || !donut) return;
-  legend.replaceChildren();
-  if (!total) {
-    donut.style.background = 'conic-gradient(#d9deeb 0 100%)';
-    return;
-  }
-  let cursor = 0;
-  const segments = [];
-  entries.forEach(([type, count], index) => {
-    const percentage = (count / total) * 100;
-    const next = cursor + percentage;
-    segments.push(`#${['5278ee', '36ad83', '8c62df', 'ffbd50', '9aa8c3'][index % 5]} ${cursor}% ${next}%`);
-    cursor = next;
-    const li = document.createElement('li');
-    li.innerHTML = `<i class="dot ${palette[index % palette.length]}"></i>${escapeHtml(type)} <b>${Math.round(percentage)}%</b>`;
-    legend.appendChild(li);
-  });
-  donut.style.background = `conic-gradient(${segments.join(', ')})`;
-}
-
-function renderMonthlyChart(documents) {
-  const bars = [...document.querySelectorAll('.bars > div')];
-  if (!bars.length) return;
-  const now = new Date();
-  const months = Array.from({ length: bars.length }, (_, index) => new Date(now.getFullYear(), now.getMonth() - (bars.length - 1 - index), 1));
-  const counts = months.map((month) => documents.filter((doc) => {
-    const date = new Date(doc.date_added);
-    return !Number.isNaN(date.getTime()) && date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth();
-  }).length);
-  const max = Math.max(...counts, 1);
-  bars.forEach((bar, index) => {
-    bar.style.height = `${(counts[index] / max) * 80}%`;
-    const label = bar.querySelector('em');
-    if (label) label.textContent = months[index].toLocaleDateString(undefined, { month: 'short' });
-    bar.title = `${counts[index]} document(s)`;
-  });
-}
-
-function escapeHtml(value) {
-  return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
-}
-
-async function loadDashboardMetrics() {
-  try {
-    const response = await fetch('/api/dashboard', { headers: { Accept: 'application/json' } });
-    const raw = await response.text();
-    let data;
-    try { data = JSON.parse(raw); } catch { throw new Error(raw || `Dashboard returned HTTP ${response.status}`); }
-    if (!response.ok) throw new Error(data.detail || data.error || 'Dashboard metrics unavailable.');
-
-    const cards = document.querySelectorAll('.stat-card');
-    const values = [data.documents, data.chunks, data.questions, data.healthy ? 'Healthy' : 'Unavailable'];
-    const subtitles = ['Live indexed documents', 'Live vector store size', 'Queries in this instance', data.healthy ? 'Pipeline operational' : 'Check API health'];
-    cards.forEach((card, index) => {
-      const value = card.querySelector('strong');
-      const subtitle = card.querySelector('small');
-      if (value) value.textContent = values[index] ?? '—';
-      if (subtitle) subtitle.textContent = subtitles[index];
-    });
-
-    const live = document.querySelector('.live');
-    if (live) live.innerHTML = `<i></i> ${data.healthy ? 'Live' : 'Degraded'}`;
-    const documents = data.documents_list || [];
-    renderDocuments(documents);
-    renderTypes(data.document_types || {});
-    renderMonthlyChart(documents);
-  } catch (err) {
-    document.querySelectorAll('.stat-card strong').forEach((card) => { card.textContent = '—'; });
-    const live = document.querySelector('.live');
-    if (live) live.innerHTML = '<i></i> Offline';
-    const table = document.querySelector('.table');
-    if (table && !table.querySelector('.empty-row')) {
-      const empty = document.createElement('div');
-      empty.className = 'table-row empty-row';
-      empty.innerHTML = '<span>Live document data unavailable</span>';
-      table.appendChild(empty);
+  function applyTheme() {
+    const dark = localStorage.getItem('rag-theme') === 'dark';
+    document.body.classList.toggle('dark-preview', dark);
+    const button = $('#theme');
+    if (button) {
+      button.textContent = dark ? '☀' : '☼';
+      button.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+      button.setAttribute('aria-label', button.title);
     }
-    console.warn('Dashboard metrics could not be loaded:', err.message);
   }
-}
 
-form?.addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const query = question.value.trim();
-  if (!query) return;
-  if (error) error.hidden = true;
-  if (answerCard) answerCard.hidden = true;
-  setBusy(true);
-  try {
-    const response = await fetch('/api/query', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query })
-    });
-    const raw = await response.text();
-    let data;
-    try { data = JSON.parse(raw); } catch { throw new Error(raw || `Server returned HTTP ${response.status}`); }
-    if (!response.ok) throw new Error(data.detail || data.error || 'The query could not be completed.');
-    setText('#answer', data.response_text || data.answer || 'No response returned.');
-    setText('#time', data.generation_time ? `${Number(data.generation_time).toFixed(2)}s` : '');
-    setText('#model', data.model_used ? `Model: ${data.model_used}` : '');
-    setText('#confidence', data.confidence_score != null ? `Confidence: ${Math.round(data.confidence_score * 100)}%` : '');
-    const sources = document.querySelector('#sources');
-    if (sources) {
-      sources.replaceChildren();
-      (data.sources || []).forEach((source) => {
-        const li = document.createElement('li');
-        li.textContent = typeof source === 'string' ? source : JSON.stringify(source);
-        sources.appendChild(li);
-      });
+  function applyProfile() {
+    const name = localStorage.getItem('rag-user-name') || 'Mehul';
+    const initials = name.split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase();
+    if ($('.profile')) $('.profile').textContent = initials || 'U';
+    if ($('.welcome h1')) $('.welcome h1').textContent = `Welcome back, ${name}!`;
+  }
+
+  function clearDemoContent() {
+    $$('.table-row').forEach((row) => row.remove());
+    $('.source-list')?.replaceChildren();
+    if ($('.source-title')) $('.source-title').textContent = 'Sources (0)';
+    if ($('#sample-answer')) $('#sample-answer').textContent = 'Ask a question to see a grounded answer from your indexed documents.';
+  }
+
+  function renderDashboard(data) {
+    const cards = $$('.stat-card strong');
+    const values = [data.documents ?? '—', data.chunks ?? '—', data.questions ?? '—', data.healthy ? 'Healthy' : 'Unavailable'];
+    cards.forEach((card, index) => { card.textContent = values[index]; });
+    if ($('.live')) $('.live').innerHTML = `<i></i> ${data.healthy ? 'Live' : 'Degraded'}`;
+    const rows = $('.table');
+    if (rows) {
+      $$('.table-row, .empty-row').forEach((row) => row.remove());
+      const docs = data.documents_list || [];
+      if (!docs.length) rows.insertAdjacentHTML('beforeend', '<div class="table-row empty-row"><span>No documents indexed yet</span></div>');
+      docs.slice(0, 8).forEach((doc) => rows.insertAdjacentHTML('beforeend', `<div class="table-row"><span>${escapeHtml(doc.name || doc.path || 'Unnamed document')}</span><span>${escapeHtml(doc.type || 'OTHER')}</span><span>—</span><span>${escapeHtml(doc.date_added || '—')}</span><span class="indexed">● ${escapeHtml(doc.status || 'Indexed')}</span></div>`));
     }
-    if (answerCard) answerCard.hidden = false;
-    loadDashboardMetrics();
-  } catch (err) {
-    if (error) { error.textContent = err.message; error.hidden = false; }
-  } finally { setBusy(false); }
-});
+  }
 
-document.querySelectorAll('[data-section]').forEach((button) => {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.nav-item').forEach((item) => item.classList.remove('active'));
-    if (button.classList.contains('nav-item')) button.classList.add('active');
-    const section = button.dataset.section;
-    if (section === 'Query') question?.focus();
-    else if (section !== 'Dashboard' && error) { error.textContent = `${section} view is ready to be connected to the backend.`; error.hidden = false; }
+  function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character])); }
+
+  async function loadDashboard() {
+    try {
+      const response = await fetch('/api/dashboard', { headers: { Accept: 'application/json' } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || data.error || 'Dashboard unavailable');
+      renderDashboard(data);
+    } catch (error) {
+      $$('.stat-card strong').forEach((card) => { card.textContent = '—'; });
+      if ($('.live')) $('.live').innerHTML = '<i></i> Offline';
+      if ($('.table') && !$('.empty-row')) $('.table').insertAdjacentHTML('beforeend', '<div class="table-row empty-row"><span>Live document data unavailable</span></div>');
+      console.warn(error.message);
+    }
+  }
+
+  $('#theme')?.addEventListener('click', () => {
+    localStorage.setItem('rag-theme', document.body.classList.contains('dark-preview') ? 'light' : 'dark');
+    applyTheme();
   });
-});
 
-document.querySelector('#theme')?.addEventListener('click', () => document.body.classList.toggle('dark-preview'));
+  $('#query-form')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const input = $('#question');
+    const error = $('#error');
+    const answerCard = $('#answer-card');
+    const submit = event.currentTarget.querySelector('button[type="submit"]');
+    const query = input.value.trim();
+    if (!query) return;
+    if (error) error.hidden = true;
+    if (answerCard) answerCard.hidden = true;
+    if (submit) { submit.disabled = true; submit.textContent = '…'; }
+    try {
+      const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || data.error || 'The query could not be completed.');
+      if ($('#answer')) $('#answer').textContent = data.response_text || data.answer || 'No response returned.';
+      if ($('#sources')) $('#sources').innerHTML = (data.sources || []).map((source) => `<li>${escapeHtml(typeof source === 'string' ? source : JSON.stringify(source))}</li>`).join('');
+      if (answerCard) answerCard.hidden = false;
+      loadDashboard();
+    } catch (err) { if (error) { error.textContent = err.message; error.hidden = false; } }
+    finally { if (submit) { submit.disabled = false; submit.textContent = '➤'; } }
+  });
 
-clearMockContent();
-loadDashboardMetrics();
+  applyTheme();
+  applyProfile();
+  clearDemoContent();
+  loadDashboard();
+
+  const sectionsScript = document.createElement('script');
+  sectionsScript.src = '/sections.js';
+  sectionsScript.defer = false;
+  document.head.appendChild(sectionsScript);
+})();
