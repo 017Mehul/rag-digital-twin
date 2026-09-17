@@ -1,5 +1,4 @@
 (() => {
-  const root = document.documentElement;
   const savedTheme = localStorage.getItem('rag-theme');
   if (savedTheme === 'dark') document.body.classList.add('dark-preview');
 
@@ -26,9 +25,7 @@
   `;
   document.head.appendChild(style);
 
-  function getUserName() {
-    return localStorage.getItem('rag-user-name') || 'User';
-  }
+  function getUserName() { return localStorage.getItem('rag-user-name') || 'User'; }
   function applyUserName() {
     const name = getUserName();
     const profile = document.querySelector('.profile');
@@ -48,10 +45,11 @@
   document.addEventListener('DOMContentLoaded', () => {
     applyUserName();
     applyThemeLabel();
-    document.querySelector('#theme')?.addEventListener('click', () => {
+    document.querySelector('#theme')?.addEventListener('click', (event) => {
+      event.stopImmediatePropagation();
       const dark = document.body.classList.toggle('dark-preview');
       localStorage.setItem('rag-theme', dark ? 'dark' : 'light');
       applyThemeLabel();
-    });
+    }, true);
   });
 })();
