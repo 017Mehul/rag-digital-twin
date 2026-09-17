@@ -1,2 +1,2 @@
 [tool.vercel]
-entrypoint = "api/query.py"
+entrypoint = "api.query:app"
