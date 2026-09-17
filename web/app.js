@@ -11,6 +11,20 @@ function setBusy(busy) {
   status.innerHTML = busy ? '<span></span> Processing' : '<span></span> Ready';
 }
 
+async function readResponse(response) {
+  const raw = await response.text();
+  let data;
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    throw new Error(`Server returned ${response.status}: ${raw.slice(0, 240) || 'empty response'}`);
+  }
+  if (!response.ok) {
+    throw new Error(data.detail || data.error || `Request failed with status ${response.status}.`);
+  }
+  return data;
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   const query = question.value.trim();
@@ -25,8 +39,7 @@ form.addEventListener('submit', async (event) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || data.error || 'The query could not be completed.');
+    const data = await readResponse(response);
 
     document.querySelector('#answer').textContent = data.response_text || 'No response returned.';
     document.querySelector('#time').textContent = data.generation_time ? `${Number(data.generation_time).toFixed(2)}s` : '';
