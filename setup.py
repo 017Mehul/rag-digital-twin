@@ -18,22 +18,17 @@ setup(
     description="A sophisticated AI-powered system implementing Retrieval-Augmented Generation",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/your-org/rag-digital-twin",
+    url="https://github.com/017Mehul/rag-digital-twin",
     packages=find_packages(),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-        "Topic :: Software Development :: Libraries :: Python Modules",
+        "Programming Language :: Python",
+        "Programming Language :: Python :: 3.12",
     ],
-    python_requires=">=3.8",
+    python_requires=">=3.12",
     install_requires=requirements,
     extras_require={
         "dev": [
@@ -56,7 +51,5 @@ setup(
         ],
     },
     include_package_data=True,
-    package_data={
-        "": ["*.yaml", "*.yml", "*.json", "*.txt"],
-    },
+    package_data={"": ["*.yaml", "*.yml", "*.json", "*.txt"]},
 )
