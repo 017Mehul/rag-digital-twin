@@ -10,7 +10,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from typing import Any, Dict, List\nfrom pathlib import Path
+from typing import Any, Dict, List
+from pathlib import Path
 
 from .exceptions import ErrorCode, VectorStoreError
 from .models.document_chunk import DocumentChunk
@@ -343,7 +344,7 @@ class PineconeVectorStore:
 
     @staticmethod
     def _record_id(metadata: Dict[str, Any]) -> str:
-        chunk_id = str(metadata.get("chunk_id", ""))
-        source_file = str(metadata.get("source_file", ""))
-        seed = f"{source_file}\0{chunk_id}\0{json.dumps(metadata, sort_keys=True, default=str)}"
+        document_id = str(metadata.get("document_id", ""))
+        chunk_index = str(metadata.get("chunk", {}).get("metadata", {}).get("chunk_index", 0))
+        seed = f"{document_id}\0{chunk_index}"
         return hashlib.sha256(seed.encode("utf-8")).hexdigest()
