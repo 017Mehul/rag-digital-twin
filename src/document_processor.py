@@ -179,7 +179,7 @@ class DocumentProcessor:
         }
         if metadata:
             base_metadata.update(metadata)
-        source_file = str(base_metadata.get("source_file") or path.name)
+        source_file = str(base_metadata.get("source_file") or path)
         return self.chunk_text(text, source_file, base_metadata)
 
     def process_batch(
