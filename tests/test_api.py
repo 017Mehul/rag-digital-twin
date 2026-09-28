@@ -54,3 +54,24 @@ def test_query_api_validates_query_length():
     client = TestClient(query_api.app)
     response = client.post("/api/query", json={"query": ""})
     assert response.status_code == 422
+
+
+def test_query_api_accepts_nonempty_durable_store(monkeypatch):
+    monkeypatch.setattr(query_api, "get_pipeline", lambda: _Pipeline())
+    client = TestClient(query_api.app)
+    response = client.post("/api/query", json={"query": "hello", "k": 3})
+    assert response.status_code == 200
+
+
+def test_query_api_rejects_overlong_query():
+    client = TestClient(query_api.app)
+    response = client.post("/api/query", json={"query": "x" * 4001})
+    assert response.status_code == 422
+
+
+def test_query_api_rate_limit(monkeypatch):
+    monkeypatch.setenv("RAG_QUERY_RATE_LIMIT", "1")
+    monkeypatch.setattr(query_api, "get_pipeline", lambda: _Pipeline())
+    client = TestClient(query_api.app)
+    assert client.post("/api/query", json={"query": "one"}).status_code == 200
+    assert client.post("/api/query", json={"query": "two"}).status_code == 429
