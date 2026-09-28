@@ -172,6 +172,62 @@ class VectorStore:
             metadata=result_metadata,
         )
 
+    def delete_document(self, document_id: str) -> None:
+        """Remove all vectors belonging to a logical document."""
+        if not document_id:
+            return
+        with self._lock:
+            keep = [
+                item.get("document_id") != document_id
+                for item in self.metadata_store
+            ]
+            if all(keep):
+                return
+            retained = [item for item, should_keep in zip(self.metadata_store, keep) if should_keep]
+            retained_vectors = []
+            if self.backend == "faiss":
+                if retained:
+                    matrix = np.asarray(
+                        [self._vector_for_metadata_index(i) for i, item in enumerate(self.metadata_store) if item.get("document_id") != document_id],
+                        dtype=np.float32,
+                    )
+                    self.index = faiss.IndexFlatIP(self.dimension)
+                    self.index.add(matrix)
+                else:
+                    self.index = self._create_index()
+            else:
+                retained_vectors = [
+                    vector for vector, item in zip(self._vector_data, self.metadata_store)
+                    if item.get("document_id") != document_id
+                ]
+                self._vector_data = (
+                    np.asarray(retained_vectors, dtype=np.float32)
+                    if retained_vectors else np.empty((0, self.dimension), dtype=np.float32)
+                )
+            self.metadata_store = retained
+
+    def get_stats(self) -> Dict[str, Any]:
+        with self._lock:
+            return {"backend": self.backend, "vectors": len(self.metadata_store)}
+
+    def list_documents(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            grouped: Dict[str, Dict[str, Any]] = {}
+            for item in self.metadata_store:
+                document_id = str(item.get("document_id", ""))
+                source_file = str(item.get("source_file", ""))
+                key = document_id or source_file
+                row = grouped.setdefault(key, {"document_id": document_id, "source_file": source_file, "chunks": 0})
+                row["chunks"] += 1
+            return list(grouped.values())
+
+    def _vector_for_metadata_index(self, index: int) -> np.ndarray:
+        if self.backend == "faiss":
+            vector = np.zeros((1, self.dimension), dtype=np.float32)
+            self.index.reconstruct(index, vector[0])
+            return vector[0]
+        return self._vector_data[index]
+
     def save(self, directory: str) -> Dict[str, str]:
         """
         Persist the FAISS index and metadata to disk.
