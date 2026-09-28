@@ -116,6 +116,7 @@ class VectorStore:
                     "embedding_metadata": metadata_payload,
                     "source_file": metadata_payload.get("source_file", chunk_payload.get("source_file", "")),
                     "chunk_id": metadata_payload.get("chunk_id", chunk_payload.get("chunk_id", "")),
+                    "document_id": metadata_payload.get("document_id", chunk_payload.get("metadata", {}).get("document_id", "")),
                 }
             )
             embeddings.append(embedding)
