@@ -37,13 +37,21 @@ async def ingest(
 ) -> dict[str, Any]:
     _require_ingest_auth(x_ingest_token)
 
-    if os.getenv("VERCEL") == "1" and os.getenv("RAG_ALLOW_EPHEMERAL_INGEST") != "true":
+    durable_store_configured = bool(
+        os.getenv("PINECONE_API_KEY") and os.getenv("PINECONE_INDEX_HOST")
+    )
+    if (
+        os.getenv("VERCEL") == "1"
+        and not durable_store_configured
+        and os.getenv("RAG_ALLOW_EPHEMERAL_INGEST") != "true"
+    ):
         raise HTTPException(
             status_code=503,
             detail=(
-                "Runtime ingestion is disabled on Vercel because the local FAISS "
-                "index is not durable across serverless invocations. Configure "
-                "persistent vector storage before enabling it."
+                "Runtime ingestion is disabled on Vercel until a durable vector "
+                "store is configured. Set PINECONE_API_KEY and "
+                "PINECONE_INDEX_HOST, or explicitly enable temporary "
+                "RAG_ALLOW_EPHEMERAL_INGEST behavior."
             ),
         )
 
