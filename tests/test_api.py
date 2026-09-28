@@ -70,6 +70,7 @@ def test_query_api_rejects_overlong_query():
 
 
 def test_query_api_rate_limit(monkeypatch):
+    query_api._requests_by_client.clear()
     monkeypatch.setenv("RAG_QUERY_RATE_LIMIT", "1")
     monkeypatch.setattr(query_api, "get_pipeline", lambda: _Pipeline())
     client = TestClient(query_api.app)
