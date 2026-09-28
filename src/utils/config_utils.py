@@ -225,7 +225,7 @@ def create_default_config(output_path: str) -> None:
                     "provider": "huggingface",
                     "model_name": "sentence-transformers/all-MiniLM-L6-v2",
                     "config": {
-                        "dimension": 1536,
+                        "dimension": 384,
                     },
                 }
             ],

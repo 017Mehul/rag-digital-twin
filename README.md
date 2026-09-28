@@ -6,7 +6,7 @@ RAG Digital Twin is a configurable Retrieval-Augmented Generation system for ing
 
 - PDF and TXT document ingestion with chunking and validation
 - Pluggable embedding and LLM providers with fallback support
-- FAISS-backed vector storage with persistence
+- FAISS-backed local vector storage plus optional durable Pinecone storage for serverless deployments
 - Query processing, context retrieval, and grounded response generation
 - Monitoring, audit trails, and property-based test coverage
 - Command-line workflows for ingestion and interactive querying
@@ -66,15 +66,28 @@ rag-query --config config/rag_config.local.yaml --query "What are the key polici
 
 ## Web deployment
 
-The FastAPI API can run on Vercel, but FAISS files are local filesystem state. Vercel serverless instances do not provide a durable shared filesystem for runtime mutations.
+The FastAPI API can run on Vercel. Local FAISS remains the default for development, while production runtime ingestion can use Pinecone as the durable shared vector store.
+
+### Durable Vercel storage
+
+Create a Pinecone serverless index whose dimension matches the active embedding model (the production OpenAI `text-embedding-3-small` configuration uses 1536 dimensions), then set these Vercel environment variables:
+
+```text
+PINECONE_API_KEY=...
+PINECONE_INDEX_HOST=https://...
+PINECONE_NAMESPACE=default
+RAG_INGEST_TOKEN=...
+```
+
+When both Pinecone variables are present, `RAGPipeline` automatically uses the Pinecone backend for ingestion and retrieval. FAISS continues to be used locally when those variables are absent. Pinecone vectors and metadata are stored remotely, so separate Vercel function instances can query the same knowledge base.
 
 Therefore:
 
-- Runtime document ingestion is disabled on Vercel by default.
-- Set `RAG_INGEST_TOKEN` to protect ingestion when it is enabled.
-- `RAG_ALLOW_EPHEMERAL_INGEST=true` can enable temporary/demo ingestion, but uploaded data can disappear when the serverless instance is recycled.
-- A durable shared vector store must be added before using runtime ingestion as a production feature.
+- Runtime document ingestion is enabled on Vercel when Pinecone and `RAG_INGEST_TOKEN` are configured.
+- Set `RAG_INGEST_TOKEN` to protect ingestion.
+- `RAG_ALLOW_EPHEMERAL_INGEST=true` remains available only for temporary/demo FAISS behavior when a durable store is not configured.
 - The query endpoint has an in-process burst limiter. Use platform-level rate limiting for a public production deployment.
+- Vercel environment-variable changes require a redeploy before the new values are available to the deployment.
 
 ## Python API
 

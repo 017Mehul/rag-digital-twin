@@ -5,6 +5,7 @@ Main RAG pipeline orchestration with monitoring, audit logging, and recovery.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -22,6 +23,7 @@ from .query_processor import QueryProcessor
 from .response_generator import ResponseGenerator
 from .utils.logging_utils import get_logger
 from .vector_store import VectorStore
+from .pinecone_vector_store import PineconeVectorStore
 
 
 class RAGPipeline:
@@ -133,6 +135,10 @@ class RAGPipeline:
 
                     for file_path, chunks in processed_documents.items():
                         try:
+                            document_metadata = chunks[0].metadata if chunks else {}
+                            document_id = str(document_metadata.get("document_id", ""))
+                            if document_id and hasattr(self.vector_store, "delete_document"):
+                                self.vector_store.delete_document(document_id)
                             entries = self.embedding_generator.generate_chunk_embeddings(chunks)
                             self.vector_store.add_documents(entries)
                             results.add_successful_document(file_path, len(chunks))
@@ -190,6 +196,26 @@ class RAGPipeline:
             self._record_audit("ingestion_completed", results.to_dict())
 
         return results
+
+    def delete_document(self, document_id: str) -> bool:
+        """Delete a logical document from the configured vector store."""
+        if not document_id:
+            return False
+        with self._component_lock:
+            if not hasattr(self.vector_store, "delete_document"):
+                raise ConfigurationError(
+                    "The configured vector store does not support document deletion",
+                    ErrorCode.CONFIG_INVALID,
+                )
+            before = len(self.vector_store)
+            self.vector_store.delete_document(document_id)
+            after = len(self.vector_store)
+            self._refresh_system_status()
+            self._record_audit(
+                "document_deleted",
+                {"document_id": document_id, "removed_vectors": max(before - after, 0)},
+            )
+            return before != after
 
     def query(
         self,
@@ -392,13 +418,32 @@ class RAGPipeline:
             provider_kwargs=self.embedding_provider_kwargs,
         )
 
-    def _create_vector_store(self) -> VectorStore:
+    def _create_vector_store(self) -> Any:
+        if self._pinecone_enabled():
+            return PineconeVectorStore(
+                dimension=self.embedding_generator.provider.dimension,
+            )
         return VectorStore(
             dimension=self.embedding_generator.provider.dimension,
             index_type=self.vector_store_index_type,
         )
 
-    def _load_or_create_vector_store(self) -> VectorStore:
+    @staticmethod
+    def _pinecone_enabled() -> bool:
+        return bool(os.getenv("PINECONE_API_KEY") and os.getenv("PINECONE_INDEX_HOST"))
+
+    def _load_or_create_vector_store(self) -> Any:
+        if self._pinecone_enabled():
+            store = self._create_vector_store()
+            self._record_audit(
+                "durable_vector_store_initialized",
+                {
+                    "backend": "pinecone",
+                    "namespace": store.namespace,
+                },
+            )
+            return store
+
         metadata_path = Path(self.config.embeddings_directory) / "vector_store_metadata.json"
         if metadata_path.exists():
             try:
