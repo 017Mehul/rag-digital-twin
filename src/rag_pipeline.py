@@ -197,6 +197,26 @@ class RAGPipeline:
 
         return results
 
+    def delete_document(self, document_id: str) -> bool:
+        """Delete a logical document from the configured vector store."""
+        if not document_id:
+            return False
+        with self._component_lock:
+            if not hasattr(self.vector_store, "delete_document"):
+                raise ConfigurationError(
+                    "The configured vector store does not support document deletion",
+                    ErrorCode.CONFIG_INVALID,
+                )
+            before = len(self.vector_store)
+            self.vector_store.delete_document(document_id)
+            after = len(self.vector_store)
+            self._refresh_system_status()
+            self._record_audit(
+                "document_deleted",
+                {"document_id": document_id, "removed_vectors": max(before - after, 0)},
+            )
+            return before != after
+
     def query(
         self,
         user_query: str,
