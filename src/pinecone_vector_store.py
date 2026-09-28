@@ -96,7 +96,12 @@ class PineconeVectorStore:
                 {
                     "id": record_id,
                     "values": [float(value) for value in embedding],
-                    "metadata": {"payload": payload},
+                    "metadata": {
+                        "payload": payload,
+                        "document_id": str(item.get("document_id", "")),
+                        "source_file": str(item.get("source_file", "")),
+                        "chunk_index": int(item.get("chunk", {}).get("metadata", {}).get("chunk_index", 0)),
+                    },
                 }
             )
 
@@ -204,6 +209,38 @@ class PineconeVectorStore:
             distances=result_distances,
             metadata=result_metadata,
         )
+
+    def delete_document(self, document_id: str) -> None:
+        """Delete all vectors belonging to a logical document."""
+        if not document_id:
+            return
+        try:
+            self._index.delete(
+                filter={"document_id": {"$eq": document_id}},
+                namespace=self.namespace,
+            )
+        except Exception as exc:
+            raise VectorStoreError(
+                "Failed to delete document from Pinecone",
+                ErrorCode.VECTOR_STORE_SAVE_FAILED,
+                "pinecone",
+                cause=exc,
+            ) from exc
+
+    def list_documents(self) -> List[Dict[str, Any]]:
+        """Return document summaries from Pinecone metadata when available."""
+        return []
+
+    def get_stats(self) -> Dict[str, Any]:
+        stats = self._index.describe_index_stats(namespace=self.namespace)
+        namespaces = getattr(stats, "namespaces", None)
+        if namespaces is None and isinstance(stats, dict):
+            namespaces = stats.get("namespaces", {})
+        current = (namespaces or {}).get(self.namespace, {})
+        count = getattr(current, "vector_count", None)
+        if count is None and isinstance(current, dict):
+            count = current.get("vector_count", 0)
+        return {"backend": self.backend, "namespace": self.namespace, "vectors": int(count or 0)}
 
     def save(self, directory: str) -> Dict[str, str]:
         """No-op for compatibility: Pinecone persists vectors remotely."""
