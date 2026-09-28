@@ -135,6 +135,10 @@ class RAGPipeline:
 
                     for file_path, chunks in processed_documents.items():
                         try:
+                            document_metadata = chunks[0].metadata if chunks else {}
+                            document_id = str(document_metadata.get("document_id", ""))
+                            if document_id and hasattr(self.vector_store, "delete_document"):
+                                self.vector_store.delete_document(document_id)
                             entries = self.embedding_generator.generate_chunk_embeddings(chunks)
                             self.vector_store.add_documents(entries)
                             results.add_successful_document(file_path, len(chunks))
