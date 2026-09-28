@@ -1,5 +1,4 @@
 # Production-oriented configuration for the RAG Digital Twin.
-# Replace environment variables or copy this file to a local variant for deployment.
 
 embedding:
   provider: "openai"
@@ -11,7 +10,7 @@ embedding:
     - provider: "huggingface"
       model_name: "sentence-transformers/all-MiniLM-L6-v2"
       config:
-        dimension: 1536
+        dimension: 384
 
 llm:
   provider: "openai"

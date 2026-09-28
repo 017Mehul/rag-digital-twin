@@ -15,22 +15,16 @@ RAG Digital Twin is a configurable Retrieval-Augmented Generation system for ing
 
 ```text
 rag-digital-twin/
+|-- api/
 |-- config/
-|   |-- rag_config.yaml
-|   `-- rag_config.local.yaml
-|-- data/
-|   |-- processed/
-|   `-- raw/
 |-- docs/
-|   |-- api.md
-|   `-- validation.md
-|-- embeddings/
-|-- logs/
+|-- public/
 |-- src/
-|   |-- models/
-|   |-- providers/
-|   `-- utils/
-`-- tests/
+|-- tests/
+|-- requirements.txt
+|-- pyproject.toml
+|-- setup.py
+`-- vercel.json
 ```
 
 ## Installation
@@ -49,17 +43,9 @@ For provider-backed runs, copy `.env.example` to `.env` and set the required API
 - `config/rag_config.yaml`: production-oriented template with environment-variable API keys and fallback providers
 - `config/rag_config.local.yaml`: local mock mode for testing the full CLI flow without external services
 
-You can also generate a sample config file from the CLI:
-
-```bash
-rag-ingest --write-config-template config/generated_config.yaml
-```
-
 ## CLI Usage
 
 ### Ingest Documents
-
-Ingest individual files or entire directories:
 
 ```bash
 rag-ingest --config config/rag_config.local.yaml data/raw
@@ -74,35 +60,21 @@ Useful options:
 
 ### Query the Knowledge Base
 
-Run a single query:
-
 ```bash
 rag-query --config config/rag_config.local.yaml --query "What are the key policies?"
 ```
 
-Start an interactive session:
+## Web deployment
 
-```bash
-rag-query --config config/rag_config.local.yaml
-```
+The FastAPI API can run on Vercel, but FAISS files are local filesystem state. Vercel serverless instances do not provide a durable shared filesystem for runtime mutations.
 
-Interactive commands:
+Therefore:
 
-- `/help` shows the available commands
-- `/history` prints recent query history from the current session
-- `/status` shows health and pipeline metrics
-- `/session` shows the session file location
-- `/clear` clears the current session history
-- `/exit` or `/quit` saves the session and closes the prompt
-
-Session history is saved as JSON in `logs/sessions/` by default, or to a custom path with `--session-file`.
-
-### Run Without Installed Entry Points
-
-```bash
-python -m src.cli ingest --config config/rag_config.local.yaml data/raw
-python -m src.cli query --config config/rag_config.local.yaml --query "What was indexed?"
-```
+- Runtime document ingestion is disabled on Vercel by default.
+- Set `RAG_INGEST_TOKEN` to protect ingestion when it is enabled.
+- `RAG_ALLOW_EPHEMERAL_INGEST=true` can enable temporary/demo ingestion, but uploaded data can disappear when the serverless instance is recycled.
+- A durable shared vector store must be added before using runtime ingestion as a production feature.
+- The query endpoint has an in-process burst limiter. Use platform-level rate limiting for a public production deployment.
 
 ## Python API
 
@@ -120,8 +92,6 @@ print(response.response_text)
 print(response.sources)
 ```
 
-More detailed integration examples are available in [docs/api.md](docs/api.md).
-
 ## Testing
 
 Run the full suite:
@@ -130,24 +100,17 @@ Run the full suite:
 pytest -q
 ```
 
-Run targeted CLI tests:
+Run targeted tests:
 
 ```bash
 pytest -q tests/test_cli.py
-```
-
-Run integration and performance validation:
-
-```bash
 pytest -q tests/test_integration.py
 pytest -q tests/test_performance.py
 ```
-
-For requirement traceability, benchmark thresholds, and final validation criteria, see [docs/validation.md](docs/validation.md).
 
 ## Development Notes
 
 - `load_config()` supports YAML and JSON files.
 - Provider-specific settings live under `embedding.provider_config` and `llm.provider_config`.
 - Fallback chains are configured with `embedding.fallbacks` and `llm.fallbacks`.
-- The CLI uses the same `RAGPipeline` and provider abstractions as the Python API, so scripts and manual runs share one execution path.
+- The CLI uses the same `RAGPipeline` and provider abstractions as the Python API.

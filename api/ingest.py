@@ -1,25 +1,56 @@
 """Document upload and ingestion endpoint."""
 from __future__ import annotations
 
+import os
+import secrets
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 
 from api.runtime import get_pipeline
 
-app = FastAPI(title="RAG Digital Twin Ingestion API", version="1.0.0")
-ALLOWED_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
+app = FastAPI(title="RAG Digital Twin Ingestion API", version="1.1.0")
+
+ALLOWED_EXTENSIONS = {".pdf", ".txt"}
 MAX_FILE_BYTES = 10 * 1024 * 1024
 
 
+def _require_ingest_auth(token: str | None) -> None:
+    configured = os.getenv("RAG_INGEST_TOKEN")
+    if configured:
+        if not token or not secrets.compare_digest(token, configured):
+            raise HTTPException(status_code=401, detail="Invalid ingestion credentials.")
+        return
+    if os.getenv("VERCEL") == "1":
+        raise HTTPException(
+            status_code=503,
+            detail="Ingestion is disabled until RAG_INGEST_TOKEN is configured.",
+        )
+
+
 @app.post("/api/ingest")
-async def ingest(file: UploadFile = File(...)) -> dict[str, Any]:
+async def ingest(
+    file: UploadFile = File(...),
+    x_ingest_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _require_ingest_auth(x_ingest_token)
+
+    if os.getenv("VERCEL") == "1" and os.getenv("RAG_ALLOW_EPHEMERAL_INGEST") != "true":
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Runtime ingestion is disabled on Vercel because the local FAISS "
+                "index is not durable across serverless invocations. Configure "
+                "persistent vector storage before enabling it."
+            ),
+        )
+
     filename = Path(file.filename or "document").name
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Supported files: PDF, TXT, MD, DOCX.")
+        raise HTTPException(status_code=400, detail="Supported files: PDF, TXT.")
 
     content = await file.read()
     if not content:
@@ -32,7 +63,7 @@ async def ingest(file: UploadFile = File(...)) -> dict[str, Any]:
         temporary_path = Path(temporary.name)
 
     try:
-        result = get_pipeline().ingest_documents([str(temporary_path)], persist=False)
+        result = get_pipeline().ingest_documents([str(temporary_path)], persist=True)
         successful = int(getattr(result, "successful_documents", 0))
         failures = list(getattr(result, "errors", []) or [])
         failed_documents = getattr(result, "failed_documents", {}) or {}
