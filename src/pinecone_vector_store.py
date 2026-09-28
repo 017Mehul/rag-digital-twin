@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List\nfrom pathlib import Path
 
 from .exceptions import ErrorCode, VectorStoreError
 from .models.document_chunk import DocumentChunk
@@ -231,8 +231,44 @@ class PineconeVectorStore:
             ) from exc
 
     def list_documents(self) -> List[Dict[str, Any]]:
-        """Return document summaries from Pinecone metadata when available."""
-        return []
+        """Return document summaries using Pinecone IDs and stored metadata."""
+        try:
+            ids = []
+            for page in self._index.list(namespace=self.namespace):
+                page_ids = getattr(page, "ids", None)
+                if page_ids is None and isinstance(page, dict):
+                    page_ids = page.get("ids", [])
+                ids.extend(page_ids or [])
+            documents: Dict[str, Dict[str, Any]] = {}
+            for start in range(0, len(ids), 100):
+                response = self._index.fetch(ids=ids[start:start + 100], namespace=self.namespace)
+                vectors = getattr(response, "vectors", None)
+                if vectors is None and isinstance(response, dict):
+                    vectors = response.get("vectors", {})
+                for item in (vectors or {}).values():
+                    metadata = getattr(item, "metadata", None)
+                    if metadata is None and isinstance(item, dict):
+                        metadata = item.get("metadata", {})
+                    metadata = metadata or {}
+                    document_id = str(metadata.get("document_id", ""))
+                    source_file = str(metadata.get("source_file", "Unknown document"))
+                    key = document_id or source_file
+                    row = documents.setdefault(key, {
+                        "name": Path(source_file).name,
+                        "path": source_file,
+                        "type": Path(source_file).suffix.lstrip(".").upper() or "OTHER",
+                        "chunks": 0,
+                        "status": "Indexed",
+                    })
+                    row["chunks"] += 1
+            return list(documents.values())
+        except Exception as exc:
+            raise VectorStoreError(
+                "Unable to list Pinecone documents",
+                ErrorCode.VECTOR_STORE_SEARCH_FAILED,
+                "pinecone",
+                cause=exc,
+            ) from exc
 
     def get_stats(self) -> Dict[str, Any]:
         stats = self._index.describe_index_stats(namespace=self.namespace)
