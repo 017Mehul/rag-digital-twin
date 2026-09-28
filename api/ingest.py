@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import secrets
 import tempfile
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +72,17 @@ async def ingest(
         temporary_path = Path(temporary.name)
 
     try:
-        result = get_pipeline().ingest_documents([str(temporary_path)], persist=True)
+        document_id = hashlib.sha256(content).hexdigest()
+        metadata = {
+            "document_id": document_id,
+            "source_file": filename,
+            "content_sha256": document_id,
+        }
+        result = get_pipeline().ingest_documents(
+            [str(temporary_path)],
+            metadata_by_file={str(temporary_path): metadata},
+            persist=True,
+        )
         successful = int(getattr(result, "successful_documents", 0))
         failures = list(getattr(result, "errors", []) or [])
         failed_documents = getattr(result, "failed_documents", {}) or {}
