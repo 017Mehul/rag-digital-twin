@@ -5,6 +5,7 @@ Main RAG pipeline orchestration with monitoring, audit logging, and recovery.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 import time
 from datetime import datetime
@@ -22,6 +23,7 @@ from .query_processor import QueryProcessor
 from .response_generator import ResponseGenerator
 from .utils.logging_utils import get_logger
 from .vector_store import VectorStore
+from .pinecone_vector_store import PineconeVectorStore
 
 
 class RAGPipeline:
@@ -392,13 +394,32 @@ class RAGPipeline:
             provider_kwargs=self.embedding_provider_kwargs,
         )
 
-    def _create_vector_store(self) -> VectorStore:
+    def _create_vector_store(self) -> Any:
+        if self._pinecone_enabled():
+            return PineconeVectorStore(
+                dimension=self.embedding_generator.provider.dimension,
+            )
         return VectorStore(
             dimension=self.embedding_generator.provider.dimension,
             index_type=self.vector_store_index_type,
         )
 
-    def _load_or_create_vector_store(self) -> VectorStore:
+    @staticmethod
+    def _pinecone_enabled() -> bool:
+        return bool(os.getenv("PINECONE_API_KEY") and os.getenv("PINECONE_INDEX_HOST"))
+
+    def _load_or_create_vector_store(self) -> Any:
+        if self._pinecone_enabled():
+            store = self._create_vector_store()
+            self._record_audit(
+                "durable_vector_store_initialized",
+                {
+                    "backend": "pinecone",
+                    "namespace": store.namespace,
+                },
+            )
+            return store
+
         metadata_path = Path(self.config.embeddings_directory) / "vector_store_metadata.json"
         if metadata_path.exists():
             try:
