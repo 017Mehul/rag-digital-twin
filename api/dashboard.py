@@ -11,8 +11,19 @@ app = FastAPI(title="RAG Digital Twin Dashboard API", version="1.2.0")
 
 
 def build_document_summary(pipeline: Any) -> list[dict[str, Any]]:
+    store = pipeline.vector_store
+    if hasattr(store, "list_documents"):
+        try:
+            return sorted(
+                store.list_documents(),
+                key=lambda item: str(item.get("date_added") or ""),
+                reverse=True,
+            )
+        except Exception:
+            return []
+
     grouped: dict[str, dict[str, Any]] = {}
-    for item in getattr(pipeline.vector_store, "metadata_store", []) or []:
+    for item in getattr(store, "metadata_store", []) or []:
         chunk = item.get("chunk") or {}
         source = str(item.get("source_file") or chunk.get("source_file") or "Unknown document")
         entry = grouped.setdefault(source, {
@@ -38,7 +49,7 @@ def dashboard() -> dict[str, Any]:
             "health": status.health.value,
             "healthy": status.is_healthy(),
             "documents": len(documents_list),
-            "chunks": len(getattr(pipeline.vector_store, "metadata_store", []) or []),
+            "chunks": int((pipeline.vector_store.get_stats() if hasattr(pipeline.vector_store, "get_stats") else {"vectors": len(pipeline.vector_store)}).get("vectors", 0)),
             "questions": int(metrics.get("queries_processed_total", 0)),
             "uptime_seconds": round(float(status.uptime_seconds), 2),
             "metrics": metrics,
@@ -47,4 +58,4 @@ def dashboard() -> dict[str, Any]:
             "document_types": dict(Counter(item["type"] for item in documents_list)),
         }
     except Exception as exc:
-        raise HTTPException(status_code=503, detail=f"Dashboard unavailable: {type(exc).__name__}: {exc}") from exc
+        raise HTTPException(status_code=503, detail="Dashboard unavailable.") from exc
