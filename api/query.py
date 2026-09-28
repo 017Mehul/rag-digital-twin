@@ -71,9 +71,7 @@ def query(request: Request, payload: QueryRequest) -> dict[str, Any]:
     _rate_limit(request)
     try:
         pipeline = get_pipeline()
-        status = pipeline.get_system_status()
-        metrics = dict(status.performance_metrics)
-        if int(metrics.get("documents_ingested_total", 0)) <= 0 or len(pipeline.vector_store) <= 0:
+        if len(pipeline.vector_store) <= 0:
             raise HTTPException(
                 status_code=400,
                 detail="No documents are available. Please add a document to the knowledge base first.",
