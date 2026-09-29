@@ -6,22 +6,11 @@ embedding:
   provider_config:
     api_key: "${OPENAI_API_KEY}"
     dimension: 1536
-  fallbacks:
-    - provider: "huggingface"
-      model_name: "sentence-transformers/all-MiniLM-L6-v2"
-      config:
-        dimension: 384
-
 llm:
   provider: "openai"
   model: "gpt-4o-mini"
   provider_config:
     api_key: "${OPENAI_API_KEY}"
-  fallbacks:
-    - provider: "huggingface"
-      model_name: "distilgpt2"
-      config: {}
-
 document_processing:
   chunk_size: 1000
   chunk_overlap: 200
