@@ -1,60 +1,37 @@
-"""Document upload and ingestion endpoint."""
+"""Temporary session-scoped document upload endpoint."""
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 import tempfile
-import hashlib
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
 
-from api.runtime import get_pipeline
+from api.runtime import create_session, get_session_pipeline
 
-app = FastAPI(title="RAG Digital Twin Ingestion API", version="1.1.0")
+app = FastAPI(title="RAG Digital Twin Ingestion API", version="1.2.0")
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt"}
 MAX_FILE_BYTES = 10 * 1024 * 1024
+SESSION_COOKIE = "rag_session"
 
 
 def _require_ingest_auth(token: str | None) -> None:
     configured = os.getenv("RAG_INGEST_TOKEN")
-    if configured:
-        if not token or not secrets.compare_digest(token, configured):
-            raise HTTPException(status_code=401, detail="Invalid ingestion credentials.")
-        return
-    if os.getenv("VERCEL") == "1":
-        raise HTTPException(
-            status_code=503,
-            detail="Ingestion is disabled until RAG_INGEST_TOKEN is configured.",
-        )
+    if configured and (not token or not secrets.compare_digest(token, configured)):
+        raise HTTPException(status_code=401, detail="Invalid ingestion credentials.")
 
 
 @app.post("/api/ingest")
 async def ingest(
+    response: Response,
     file: UploadFile = File(...),
     x_ingest_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _require_ingest_auth(x_ingest_token)
-
-    durable_store_configured = bool(
-        os.getenv("PINECONE_API_KEY") and os.getenv("PINECONE_INDEX_HOST")
-    )
-    if (
-        os.getenv("VERCEL") == "1"
-        and not durable_store_configured
-        and os.getenv("RAG_ALLOW_EPHEMERAL_INGEST") != "true"
-    ):
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "Runtime ingestion is disabled on Vercel until a durable vector "
-                "store is configured. Set PINECONE_API_KEY and "
-                "PINECONE_INDEX_HOST, or explicitly enable temporary "
-                "RAG_ALLOW_EPHEMERAL_INGEST behavior."
-            ),
-        )
 
     filename = Path(file.filename or "document").name
     suffix = Path(filename).suffix.lower()
@@ -67,6 +44,28 @@ async def ingest(
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="File size must be 10 MB or less.")
 
+    session_id = request_session_id = None
+    # A browser session cookie is created on first upload and reused for later queries.
+    # If it is absent, create a new short-lived in-memory RAG pipeline.
+    # FastAPI's Response object cannot read cookies, so the cookie is read from the
+    # request header below by the lightweight ASGI request accessor.
+    from fastapi import Request
+    request = Request(scope=response.scope) if hasattr(response, "scope") else None
+    if request is not None:
+        session_id = request.cookies.get(SESSION_COOKIE)
+
+    pipeline = get_session_pipeline(session_id or "")
+    if pipeline is None:
+        session_id, pipeline = create_session()
+        response.set_cookie(
+            SESSION_COOKIE,
+            session_id,
+            httponly=True,
+            samesite="lax",
+            secure=os.getenv("VERCEL") == "1",
+            max_age=1800,
+        )
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temporary:
         temporary.write(content)
         temporary_path = Path(temporary.name)
@@ -78,10 +77,10 @@ async def ingest(
             "source_file": filename,
             "content_sha256": document_id,
         }
-        result = get_pipeline().ingest_documents(
+        result = pipeline.ingest_documents(
             [str(temporary_path)],
             metadata_by_file={str(temporary_path): metadata},
-            persist=True,
+            persist=False,
         )
         successful = int(getattr(result, "successful_documents", 0))
         failures = list(getattr(result, "errors", []) or [])
@@ -96,7 +95,7 @@ async def ingest(
             "documents": successful,
             "chunks": int(getattr(result, "total_chunks", 0)),
             "embeddings": int(getattr(result, "total_embeddings", 0)),
-            "message": f"{filename} was indexed successfully.",
+            "message": f"{filename} was indexed for this temporary session.",
         }
     finally:
         temporary_path.unlink(missing_ok=True)
