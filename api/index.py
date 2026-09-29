@@ -141,7 +141,6 @@ async def ingest(
             httponly=True,
             samesite="lax",
             secure=os.getenv("VERCEL") == "1",
-            max_age=SESSION_TTL_SECONDS,
         )
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temporary:
