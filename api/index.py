@@ -97,11 +97,18 @@ def build_document_summary(pipeline: Any) -> list[dict[str, Any]]:
 
 
 @app.get("/api/health")
-def health() -> dict[str, Any]:
+def health(request: Request) -> dict[str, Any]:
+    pipeline = get_session_pipeline(request.cookies.get(SESSION_COOKIE))
+    if pipeline is None:
+        return {"health": "ready", "healthy": True, "mode": "temporary-session-demo", "documents": 0}
     try:
-        return _session_pipeline(Request({"type": "http", "headers": [], "query_string": b"", "path": "/api/health", "method": "GET", "client": None, "server": None, "scheme": "http"})).run_health_check()
-    except HTTPException:
-        return {"health": "ready", "healthy": True, "mode": "temporary-session-demo"}
+        status = pipeline.get_system_status()
+        return {
+            "health": status.health.value,
+            "healthy": status.is_healthy(),
+            "mode": "temporary-session-demo",
+            "documents": len(pipeline.vector_store),
+        }
     except Exception as exc:
         logger.exception("Health check failed")
         raise HTTPException(status_code=503, detail="RAG service unavailable.") from exc
