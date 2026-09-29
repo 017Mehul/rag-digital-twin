@@ -10,7 +10,7 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from api.runtime import get_pipeline
+from api.runtime import get_session_pipeline
 
 app = FastAPI(title="RAG Digital Twin API", version="1.2.0")
 logger = logging.getLogger("rag_digital_twin.api")
@@ -70,7 +70,9 @@ def health() -> dict[str, Any]:
 def query(request: Request, payload: QueryRequest) -> dict[str, Any]:
     _rate_limit(request)
     try:
-        pipeline = get_pipeline()
+        pipeline = get_session_pipeline(request.cookies.get("rag_session"))
+        if pipeline is None:
+            raise HTTPException(status_code=400, detail="Your demo session has expired. Upload a document to start a new session.")
         if len(pipeline.vector_store) <= 0:
             raise HTTPException(
                 status_code=400,
