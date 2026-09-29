@@ -15,7 +15,7 @@
 
   function showIngest() {
     setActive('Ingest Documents');
-    content.innerHTML = `<div class="panel ingest-screen" style="max-width:900px;margin:0 auto;padding:32px"><div class="panel-heading"><div><h1>Ingest Documents</h1><p>Upload PDF or TXT files to index them in your RAG pipeline.</p></div><button class="link-btn" id="back-dashboard">← Dashboard</button></div><form id="ingest-form" style="margin-top:28px;display:grid;gap:18px"><label for="document-file"><b>Select document</b></label><input id="document-file" name="file" type="file" accept=".pdf,.txt" required /><label for="ingest-token"><b>Ingestion token</b> <small>(required when the server is protected)</small></label><input id="ingest-token" name="token" type="password" autocomplete="off" placeholder="Enter RAG_INGEST_TOKEN if required" /><button type="submit" class="primary-button">Upload and Index</button></form><div id="ingest-result" class="message" hidden style="margin-top:18px"></div></div>`;
+    content.innerHTML = `<div class="panel ingest-screen" style="max-width:900px;margin:0 auto;padding:32px"><div class="panel-heading"><div><h1>Ingest Documents</h1><p>Upload PDF or TXT files to index them in your RAG pipeline.</p></div><button class="link-btn" id="back-dashboard">← Dashboard</button></div><form id="ingest-form" style="margin-top:28px;display:grid;gap:18px"><label for="document-file"><b>Select document</b></label><input id="document-file" name="file" type="file" accept=".pdf,.txt" required /><p class="muted">Your upload is available only for this temporary browser session.</p><button type="submit" class="primary-button">Upload and Index</button></form><div id="ingest-result" class="message" hidden style="margin-top:18px"></div></div>`;
     document.querySelector('#back-dashboard')?.addEventListener('click', showDashboard);
     document.querySelector('#ingest-form')?.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -23,16 +23,14 @@
       const result = document.querySelector('#ingest-result');
       const button = form.querySelector('button[type="submit"]');
       const file = document.querySelector('#document-file')?.files?.[0];
-      const token = document.querySelector('#ingest-token')?.value?.trim();
       if (!file) return;
       button.disabled = true;
       button.textContent = 'Indexing…';
       result.hidden = true;
       const body = new FormData();
       body.append('file', file);
-      const headers = token ? { 'X-Ingest-Token': token } : {};
       try {
-        const response = await fetch('/api/ingest', { method: 'POST', headers, body });
+        const response = await fetch('/api/ingest', { method: 'POST', body });
         const raw = await response.text();
         let data;
         try { data = JSON.parse(raw); } catch { throw new Error(raw || 'Upload failed.'); }

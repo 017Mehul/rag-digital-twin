@@ -23,7 +23,6 @@ from .query_processor import QueryProcessor
 from .response_generator import ResponseGenerator
 from .utils.logging_utils import get_logger
 from .vector_store import VectorStore
-from .pinecone_vector_store import PineconeVectorStore
 
 
 class RAGPipeline:
@@ -44,6 +43,7 @@ class RAGPipeline:
         embedding_provider_kwargs: Optional[Dict[str, Any]] = None,
         llm_provider_kwargs: Optional[Dict[str, Any]] = None,
         vector_store_index_type: str = "flat",
+        load_persisted_store: bool = True,
     ) -> None:
         try:
             config.validate()
@@ -65,6 +65,7 @@ class RAGPipeline:
         self.embedding_provider_kwargs = dict(embedding_provider_kwargs or {})
         self.llm_provider_kwargs = dict(llm_provider_kwargs or {})
         self.vector_store_index_type = vector_store_index_type
+        self.load_persisted_store = load_persisted_store
 
         self.document_processor = (
             document_processor if document_processor is not None else self._create_document_processor()
@@ -419,47 +420,29 @@ class RAGPipeline:
         )
 
     def _create_vector_store(self) -> Any:
-        if self._pinecone_enabled():
-            return PineconeVectorStore(
-                dimension=self.embedding_generator.provider.dimension,
-            )
         return VectorStore(
             dimension=self.embedding_generator.provider.dimension,
             index_type=self.vector_store_index_type,
         )
 
-    @staticmethod
-    def _pinecone_enabled() -> bool:
-        return bool(os.getenv("PINECONE_API_KEY") and os.getenv("PINECONE_INDEX_HOST"))
-
     def _load_or_create_vector_store(self) -> Any:
-        if self._pinecone_enabled():
-            store = self._create_vector_store()
-            self._record_audit(
-                "durable_vector_store_initialized",
-                {
-                    "backend": "pinecone",
-                    "namespace": store.namespace,
-                },
-            )
-            return store
-
-        metadata_path = Path(self.config.embeddings_directory) / "vector_store_metadata.json"
-        if metadata_path.exists():
-            try:
-                store = VectorStore.load(self.config.embeddings_directory)
-                self._record_audit(
-                    "vector_store_loaded",
-                    {
-                        "directory": self.config.embeddings_directory,
-                        "vector_store_size": len(store),
-                    },
-                )
-                return store
-            except Exception as exc:
-                handled = self.error_handler.handle_error(exc, {"operation": "load_vector_store"})
-                self._record_system_error(handled["message"])
-                self._record_audit("vector_store_load_failed", handled, level="warning")
+        if self.load_persisted_store:
+            metadata_path = Path(self.config.embeddings_directory) / "vector_store_metadata.json"
+            if metadata_path.exists():
+                try:
+                    store = VectorStore.load(self.config.embeddings_directory)
+                    self._record_audit(
+                        "vector_store_loaded",
+                        {
+                            "directory": self.config.embeddings_directory,
+                            "vector_store_size": len(store),
+                        },
+                    )
+                    return store
+                except Exception as exc:
+                    handled = self.error_handler.handle_error(exc, {"operation": "load_vector_store"})
+                    self._record_system_error(handled["message"])
+                    self._record_audit("vector_store_load_failed", handled, level="warning")
 
         store = self._create_vector_store()
         self._record_audit(
@@ -467,6 +450,7 @@ class RAGPipeline:
             {
                 "dimension": store.dimension,
                 "index_type": store.index_type,
+                "persistent": self.load_persisted_store,
             },
         )
         return store

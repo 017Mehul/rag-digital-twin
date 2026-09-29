@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
-import api.query as query_api
+import api.index as api
 
 
 class _Store:
@@ -30,8 +30,9 @@ class _Pipeline:
 
 
 def test_query_api_returns_grounded_payload(monkeypatch):
-    monkeypatch.setattr(query_api, "get_pipeline", lambda: _Pipeline())
-    client = TestClient(query_api.app)
+    monkeypatch.setattr(api, "get_session_pipeline", lambda session_id: _Pipeline())
+    client = TestClient(api.app)
+    client.cookies.set("rag_session", "test-session")
     response = client.post("/api/query", json={"query": "What is this?"})
     assert response.status_code == 200
     body = response.json()
@@ -43,36 +44,39 @@ def test_query_api_rejects_empty_knowledge_base(monkeypatch):
     class EmptyPipeline:
         vector_store = _Store(0)
 
-    monkeypatch.setattr(query_api, "get_pipeline", lambda: EmptyPipeline())
-    client = TestClient(query_api.app)
+    monkeypatch.setattr(api, "get_session_pipeline", lambda session_id: EmptyPipeline())
+    client = TestClient(api.app)
+    client.cookies.set("rag_session", "test-session")
     response = client.post("/api/query", json={"query": "What is this?"})
     assert response.status_code == 400
     assert "No documents" in response.json()["detail"]
 
 
+def test_query_api_requires_session(monkeypatch):
+    monkeypatch.setattr(api, "get_session_pipeline", lambda session_id: None)
+    client = TestClient(api.app)
+    response = client.post("/api/query", json={"query": "What is this?"})
+    assert response.status_code == 400
+    assert "session has expired" in response.json()["detail"]
+
+
 def test_query_api_validates_query_length():
-    client = TestClient(query_api.app)
+    client = TestClient(api.app)
     response = client.post("/api/query", json={"query": ""})
     assert response.status_code == 422
 
 
-def test_query_api_accepts_nonempty_durable_store(monkeypatch):
-    monkeypatch.setattr(query_api, "get_pipeline", lambda: _Pipeline())
-    client = TestClient(query_api.app)
-    response = client.post("/api/query", json={"query": "hello", "k": 3})
-    assert response.status_code == 200
-
-
 def test_query_api_rejects_overlong_query():
-    client = TestClient(query_api.app)
+    client = TestClient(api.app)
     response = client.post("/api/query", json={"query": "x" * 4001})
     assert response.status_code == 422
 
 
 def test_query_api_rate_limit(monkeypatch):
-    query_api._requests_by_client.clear()
+    api._requests_by_client.clear()
     monkeypatch.setenv("RAG_QUERY_RATE_LIMIT", "1")
-    monkeypatch.setattr(query_api, "get_pipeline", lambda: _Pipeline())
-    client = TestClient(query_api.app)
+    monkeypatch.setattr(api, "get_session_pipeline", lambda session_id: _Pipeline())
+    client = TestClient(api.app)
+    client.cookies.set("rag_session", "test-session")
     assert client.post("/api/query", json={"query": "one"}).status_code == 200
     assert client.post("/api/query", json={"query": "two"}).status_code == 429
