@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Header, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, Request, Response, UploadFile
 
 from api.runtime import create_session, get_session_pipeline
 
@@ -27,6 +27,7 @@ def _require_ingest_auth(token: str | None) -> None:
 
 @app.post("/api/ingest")
 async def ingest(
+    request: Request,
     response: Response,
     file: UploadFile = File(...),
     x_ingest_token: str | None = Header(default=None),
@@ -44,16 +45,7 @@ async def ingest(
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="File size must be 10 MB or less.")
 
-    session_id = request_session_id = None
-    # A browser session cookie is created on first upload and reused for later queries.
-    # If it is absent, create a new short-lived in-memory RAG pipeline.
-    # FastAPI's Response object cannot read cookies, so the cookie is read from the
-    # request header below by the lightweight ASGI request accessor.
-    from fastapi import Request
-    request = Request(scope=response.scope) if hasattr(response, "scope") else None
-    if request is not None:
-        session_id = request.cookies.get(SESSION_COOKIE)
-
+    session_id = request.cookies.get(SESSION_COOKIE)
     pipeline = get_session_pipeline(session_id or "")
     if pipeline is None:
         session_id, pipeline = create_session()
