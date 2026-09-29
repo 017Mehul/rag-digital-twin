@@ -4,8 +4,8 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 from typing import Any
-from fastapi import FastAPI, HTTPException
-from api.runtime import get_pipeline
+from fastapi import FastAPI, HTTPException, Request
+from api.runtime import get_session_pipeline
 
 app = FastAPI(title="RAG Digital Twin Dashboard API", version="1.2.0")
 
@@ -39,9 +39,11 @@ def build_document_summary(pipeline: Any) -> list[dict[str, Any]]:
 
 
 @app.get("/api/dashboard")
-def dashboard() -> dict[str, Any]:
+def dashboard(request: Request) -> dict[str, Any]:
     try:
-        pipeline = get_pipeline()
+        pipeline = get_session_pipeline(request.cookies.get("rag_session"))
+        if pipeline is None:
+            return {"health": "ready", "healthy": True, "documents": 0, "chunks": 0, "questions": 0, "uptime_seconds": 0, "metrics": {}, "components_status": {}, "documents_list": [], "document_types": {}}
         status = pipeline.get_system_status()
         metrics = dict(status.performance_metrics)
         documents_list = build_document_summary(pipeline)
