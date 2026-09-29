@@ -3,12 +3,11 @@ from __future__ import annotations
 
 import hashlib
 import os
-import secrets
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, File, Header, HTTPException, Request, Response, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, Response, UploadFile
 
 from api.runtime import create_session, get_session_pipeline
 
@@ -19,21 +18,13 @@ MAX_FILE_BYTES = 10 * 1024 * 1024
 SESSION_COOKIE = "rag_session"
 
 
-def _require_ingest_auth(token: str | None) -> None:
-    configured = os.getenv("RAG_INGEST_TOKEN")
-    if configured and (not token or not secrets.compare_digest(token, configured)):
-        raise HTTPException(status_code=401, detail="Invalid ingestion credentials.")
-
 
 @app.post("/api/ingest")
 async def ingest(
     request: Request,
     response: Response,
     file: UploadFile = File(...),
-    x_ingest_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
-    _require_ingest_auth(x_ingest_token)
-
     filename = Path(file.filename or "document").name
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
