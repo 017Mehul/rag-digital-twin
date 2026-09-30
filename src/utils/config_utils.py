@@ -220,15 +220,6 @@ def create_default_config(output_path: str) -> None:
                 "api_key": "${OPENAI_API_KEY}",
                 "dimension": 1536,
             },
-            "fallbacks": [
-                {
-                    "provider": "huggingface",
-                    "model_name": "sentence-transformers/all-MiniLM-L6-v2",
-                    "config": {
-                        "dimension": 384,
-                    },
-                }
-            ],
         },
         "llm": {
             "provider": "openai",
