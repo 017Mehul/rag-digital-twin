@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from api.runtime import create_session, get_session_pipeline
 
-app = FastAPI(title="RAG Digital Twin API", version="1.3.0")
+app = FastAPI(title="RAG Digital Twin API", version="1.4.0")
 logger = logging.getLogger("rag_digital_twin.api")
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt"}
@@ -24,8 +24,9 @@ SESSION_COOKIE = "rag_session"
 SESSION_TTL_SECONDS = int(os.getenv("RAG_SESSION_TTL_SECONDS", "1800"))
 
 _RATE_WINDOW_SECONDS = 60
-_DEFAULT_RATE_LIMIT = 30
-_requests_by_client: dict[str, deque[float]] = defaultdict(deque)
+_DEFAULT_QUERY_RATE_LIMIT = 30
+_DEFAULT_INGEST_RATE_LIMIT = 3
+_requests_by_client: dict[tuple[str, str], deque[float]] = defaultdict(deque)
 
 
 class QueryRequest(BaseModel):
@@ -34,15 +35,16 @@ class QueryRequest(BaseModel):
     threshold: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
-def _rate_limit(request: Request) -> None:
+def _rate_limit(request: Request, action: str, default_limit: int) -> None:
     try:
-        limit = max(1, int(os.getenv("RAG_QUERY_RATE_LIMIT", str(_DEFAULT_RATE_LIMIT))))
+        env_name = "RAG_INGEST_RATE_LIMIT" if action == "ingest" else "RAG_QUERY_RATE_LIMIT"
+        limit = max(1, int(os.getenv(env_name, str(default_limit))))
     except ValueError:
-        limit = _DEFAULT_RATE_LIMIT
+        limit = default_limit
 
     client = request.client.host if request.client else "unknown"
     now = time.monotonic()
-    bucket = _requests_by_client[client]
+    bucket = _requests_by_client[(action, client)]
     while bucket and now - bucket[0] >= _RATE_WINDOW_SECONDS:
         bucket.popleft()
     if len(bucket) >= limit:
@@ -96,6 +98,15 @@ def build_document_summary(pipeline: Any) -> list[dict[str, Any]]:
     return sorted(grouped.values(), key=lambda item: str(item.get("date_added") or ""), reverse=True)
 
 
+@app.middleware("http")
+async def no_store_api_responses(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.get("/api/health")
 def health(request: Request) -> dict[str, Any]:
     pipeline = get_session_pipeline(request.cookies.get(SESSION_COOKIE))
@@ -120,6 +131,8 @@ async def ingest(
     response: Response,
     file: UploadFile = File(...),
 ) -> dict[str, Any]:
+    _rate_limit(request, "ingest", _DEFAULT_INGEST_RATE_LIMIT)
+
     filename = Path(file.filename or "document").name
     suffix = Path(filename).suffix.lower()
     if suffix not in ALLOWED_EXTENSIONS:
@@ -135,6 +148,7 @@ async def ingest(
     pipeline = get_session_pipeline(session_id or "")
     if pipeline is None:
         session_id, pipeline = create_session()
+        existing_uploads = 0
         response.set_cookie(
             SESSION_COOKIE,
             session_id,
@@ -142,6 +156,10 @@ async def ingest(
             samesite="lax",
             secure=os.getenv("VERCEL") == "1",
         )
+
+    existing_uploads = int(getattr(pipeline, "_demo_upload_count", 0))
+    if existing_uploads >= 5:
+        raise HTTPException(status_code=429, detail="This demo session allows up to 5 document uploads.", headers={"Retry-After": str(SESSION_TTL_SECONDS)})
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temporary:
         temporary.write(content)
@@ -166,6 +184,7 @@ async def ingest(
             failures.extend(str(value) for value in failed_documents.values())
         if not successful:
             raise HTTPException(status_code=422, detail=failures or "Document ingestion failed.")
+        pipeline._demo_upload_count = existing_uploads + successful
         return {
             "success": True,
             "filename": filename,
@@ -180,7 +199,7 @@ async def ingest(
 
 @app.post("/api/query")
 def query(request: Request, payload: QueryRequest) -> dict[str, Any]:
-    _rate_limit(request)
+    _rate_limit(request, "query", _DEFAULT_QUERY_RATE_LIMIT)
     pipeline = _session_pipeline(request)
     if len(pipeline.vector_store) <= 0:
         raise HTTPException(
