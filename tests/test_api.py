@@ -80,3 +80,23 @@ def test_query_api_rate_limit(monkeypatch):
     client.cookies.set("rag_session", "test-session")
     assert client.post("/api/query", json={"query": "one"}).status_code == 200
     assert client.post("/api/query", json={"query": "two"}).status_code == 429
+
+
+def test_api_responses_are_not_cacheable(monkeypatch):
+    monkeypatch.setattr(api, "get_session_pipeline", lambda session_id: None)
+    response = TestClient(api.app).get("/api/health")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
+
+
+def test_ingest_rate_limit_is_separate_from_query_limit(monkeypatch):
+    api._requests_by_client.clear()
+    monkeypatch.setenv("RAG_INGEST_RATE_LIMIT", "1")
+    request = SimpleNamespace(client=SimpleNamespace(host="test-client"))
+    api._rate_limit(request, "ingest", 1)
+    try:
+        api._rate_limit(request, "ingest", 1)
+        assert False, "expected rate limit"
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 429
