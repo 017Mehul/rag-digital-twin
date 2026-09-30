@@ -33,10 +33,10 @@ rag-digital-twin/
 git clone <repository-url>
 cd rag-digital-twin
 pip install -r requirements.txt
-pip install -e .
+pip install -e .[test]
 ```
 
-For provider-backed runs, copy `.env.example` to `.env` and set the required API keys. For offline/local validation, use the mock-enabled config at `config/rag_config.local.yaml`.
+Set `OPENAI_API_KEY` when using the production configuration. For offline/local validation, use the mock-enabled config at `config/rag_config.local.yaml`.
 
 ## Configuration Templates
 
@@ -115,5 +115,5 @@ pytest -q tests/test_performance.py
 
 - `load_config()` supports YAML and JSON files.
 - Provider-specific settings live under `embedding.provider_config` and `llm.provider_config`.
-- Fallback chains are configured with `embedding.provider fallbacks` and `llm.fallbacks`.
+- The public production configuration uses OpenAI-only providers; local mock configuration remains available for offline testing.
 - The CLI uses the same `RAGPipeline` and provider abstractions as the Python API.
