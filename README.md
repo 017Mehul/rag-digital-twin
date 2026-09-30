@@ -76,6 +76,7 @@ The FastAPI API can run on Vercel as a portfolio demo. Each browser session gets
 - Closing the browser removes the session-only cookie; the server-side session is also cleaned up by the inactivity TTL.
 - Because Vercel serverless instances are ephemeral, this mode is intentionally a demo/portfolio architecture rather than a durable multi-user knowledge base.
 - PDF and TXT uploads are supported, with a 10 MB per-file limit.
+- Re-uploading the same document replaces its previous indexed copy instead of consuming another session document slot.
 
 `RAG_SESSION_TTL_SECONDS` can be changed for a different demo timeout.
 

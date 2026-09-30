@@ -100,3 +100,27 @@ def test_ingest_rate_limit_is_separate_from_query_limit(monkeypatch):
         assert False, "expected rate limit"
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 429
+
+
+def test_ingest_replaces_duplicate_document_without_consuming_upload_slot(monkeypatch, tmp_path):
+    api._requests_by_client.clear()
+    monkeypatch.setenv("RAG_INGEST_RATE_LIMIT", "10")
+
+    class IngestPipeline:
+        vector_store = _Store(0)
+        _demo_document_ids = set()
+        _demo_upload_count = 0
+
+        def ingest_documents(self, *args, **kwargs):
+            return SimpleNamespace(successful_documents=1, errors=[], failed_documents={}, total_chunks=2, total_embeddings=2)
+
+    pipeline = IngestPipeline()
+    monkeypatch.setattr(api, "get_session_pipeline", lambda session_id: pipeline)
+    monkeypatch.setattr(api, "create_session", lambda: ("test-session", pipeline))
+    client = TestClient(api.app)
+    payload = b"same document content"
+    for _ in range(5):
+        response = client.post("/api/ingest", files={"file": ("guide.txt", payload, "text/plain")})
+        assert response.status_code == 200
+    assert pipeline._demo_upload_count == 1
+    assert pipeline._demo_document_ids

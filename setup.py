@@ -15,9 +15,9 @@ RUNTIME_REQUIREMENTS = [
 
 setup(
     name="rag-digital-twin",
-    version="1.0.0",
-    author="RAG Digital Twin Team",
-    author_email="team@rag-digital-twin.com",
+    version="1.5.0",
+    author="Mehul Gupta",
+    author_email="017.mehul@gmail.com",
     description="A sophisticated AI-powered system implementing Retrieval-Augmented Generation",
     long_description=long_description,
     long_description_content_type="text/markdown",

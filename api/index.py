@@ -157,7 +157,8 @@ async def ingest(
             secure=os.getenv("VERCEL") == "1",
         )
 
-    existing_uploads = int(getattr(pipeline, "_demo_upload_count", 0))
+    existing_document_ids = set(getattr(pipeline, "_demo_document_ids", set()))
+    existing_uploads = len(existing_document_ids)
     if existing_uploads >= 5:
         raise HTTPException(status_code=429, detail="This demo session allows up to 5 document uploads.", headers={"Retry-After": str(SESSION_TTL_SECONDS)})
 
@@ -184,7 +185,9 @@ async def ingest(
             failures.extend(str(value) for value in failed_documents.values())
         if not successful:
             raise HTTPException(status_code=422, detail=failures or "Document ingestion failed.")
-        pipeline._demo_upload_count = existing_uploads + successful
+        existing_document_ids.add(document_id)
+        pipeline._demo_document_ids = existing_document_ids
+        pipeline._demo_upload_count = len(existing_document_ids)
         return {
             "success": True,
             "filename": filename,
