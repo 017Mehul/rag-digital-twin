@@ -226,14 +226,7 @@ def create_default_config(output_path: str) -> None:
             "model": "gpt-4o-mini",
             "provider_config": {
                 "api_key": "${OPENAI_API_KEY}",
-            },
-            "fallbacks": [
-                {
-                    "provider": "huggingface",
-                    "model_name": "distilgpt2",
-                    "config": {},
-                }
-            ],
+            }
         },
         "document_processing": {
             "chunk_size": 1000,
