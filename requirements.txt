@@ -10,7 +10,6 @@ python-multipart>=0.0.9
 
 # Document processing
 PyPDF2>=3.0.0
-python-docx>=0.8.11
 
 # Configuration and utilities
 pyyaml>=6.0
