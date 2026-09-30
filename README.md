@@ -5,7 +5,7 @@ RAG Digital Twin is a configurable Retrieval-Augmented Generation system for ing
 ## What It Includes
 
 - PDF and TXT document ingestion with chunking and validation
-- Pluggable embedding and LLM providers with fallback support
+- OpenAI embeddings and LLM generation
 - FAISS-backed vector storage with temporary session-scoped storage for the public demo
 - Query processing, context retrieval, and grounded response generation
 - Monitoring, audit trails, and property-based test coverage
@@ -40,7 +40,7 @@ For provider-backed runs, copy `.env.example` to `.env` and set the required API
 
 ## Configuration Templates
 
-- `config/rag_config.yaml`: production-oriented template with environment-variable API keys and fallback providers
+- `config/rag_config.yaml`: production-oriented template with environment-variable API keys and OpenAI-only providers
 - `config/rag_config.local.yaml`: local mock mode for testing the full CLI flow without external services
 
 ## CLI Usage
@@ -115,5 +115,5 @@ pytest -q tests/test_performance.py
 
 - `load_config()` supports YAML and JSON files.
 - Provider-specific settings live under `embedding.provider_config` and `llm.provider_config`.
-- Fallback chains are configured with `embedding.fallbacks` and `llm.fallbacks`.
+- Fallback chains are configured with `embedding.provider fallbacks` and `llm.fallbacks`.
 - The CLI uses the same `RAGPipeline` and provider abstractions as the Python API.
