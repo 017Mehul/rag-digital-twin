@@ -7,8 +7,11 @@ from setuptools import setup, find_packages
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
-with open("requirements.txt", "r", encoding="utf-8") as fh:
-    requirements = [line.strip() for line in fh if line.strip() and not line.startswith("#")]
+RUNTIME_REQUIREMENTS = [
+    "numpy>=1.21.0", "faiss-cpu>=1.7.0", "openai>=1.0.0",
+    "fastapi>=0.110.0", "pydantic>=2.0.0", "python-multipart>=0.0.9",
+    "PyPDF2>=3.0.0", "pyyaml>=6.0", "python-dotenv>=0.19.0",
+]
 
 setup(
     name="rag-digital-twin",
@@ -29,7 +32,7 @@ setup(
         "Programming Language :: Python :: 3.12",
     ],
     python_requires=">=3.12",
-    install_requires=requirements,
+    install_requires=RUNTIME_REQUIREMENTS,
     extras_require={
         "dev": [
             "black>=22.0.0",
