@@ -21,7 +21,7 @@ document_processing:
 
 retrieval:
   top_k_results: 5
-  similarity_threshold: 0.6
+  similarity_threshold: 0.0
   max_context_length: 4000
 
 response:
