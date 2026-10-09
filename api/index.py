@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 
 from api.runtime import create_session, get_session_pipeline
 
-app = FastAPI(title="RAG Digital Twin API", version="1.4.0")
+app = FastAPI(title="RAG Digital Twin API", version="1.5.0")
 logger = logging.getLogger("rag_digital_twin.api")
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt"}
