@@ -71,7 +71,7 @@
         const result = document.querySelector('#section-query-result');
         result.textContent = 'Searching…';
         try {
-          const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+          const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() }, body: JSON.stringify({ query }) });
           const data = await response.json();
           if (!response.ok) throw new Error(data.detail || data.error || 'Query failed');
           result.textContent = data.response_text || data.answer || 'No answer returned.';
