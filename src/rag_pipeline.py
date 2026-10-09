@@ -527,7 +527,12 @@ class RAGPipeline:
             self.audit_trail.append(entry)
 
         log_method = getattr(self.logger, level, self.logger.info)
-        log_method("%s | %s", event, details)
+        sensitive_keys = {"query", "file_path", "source_file", "sources", "directory", "api_key", "token", "secret", "password", "authorization"}
+        safe_details = {
+            key: "[REDACTED]" if key.lower() in sensitive_keys else value
+            for key, value in details.items()
+        }
+        log_method("%s | %s", event, safe_details)
 
     def _build_insufficient_context_response(
         self,
