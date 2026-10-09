@@ -186,7 +186,8 @@ class TestConfigTemplates:
 
         assert generated["embedding"]["provider"] == "openai"
         assert generated["embedding"]["provider_config"]["api_key"] == "${OPENAI_API_KEY}"
-        assert generated["llm"]["fallbacks"][0]["provider"] == "huggingface"
+        assert generated["llm"]["provider"] == "openai"
+        assert generated["llm"]["provider_config"]["api_key"] == "$"+"{OPENAI_API_KEY}"
 
     def test_load_config_resolves_nested_environment_variables(self, temp_directory, monkeypatch):
         config_path = Path(temp_directory) / "nested_env.yaml"
