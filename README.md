@@ -5,7 +5,7 @@ RAG Digital Twin is a configurable Retrieval-Augmented Generation system for ing
 ## What It Includes
 
 - PDF and TXT document ingestion with chunking and validation
-- OpenAI embeddings and LLM generation
+- NVIDIA embeddings and NVIDIA-hosted LLM generation through an OpenAI-compatible API
 - FAISS-backed vector storage with temporary session-scoped storage for the public demo
 - Query processing, context retrieval, and grounded response generation
 - Monitoring, audit trails, and property-based test coverage
@@ -36,12 +36,26 @@ pip install -r requirements.txt
 pip install -e .[test]
 ```
 
-Set `OPENAI_API_KEY` when using the production configuration. For offline/local validation, use the mock-enabled config at `config/rag_config.local.yaml`.
+### Production API configuration
+
+The production configuration uses NVIDIA-hosted models through NVIDIA's OpenAI-compatible API.
+
+Set the NVIDIA API credential in the environment variable used by the production configuration:
+
+```bash
+OPENAI_API_KEY=<your-nvidia-api-key>
+```
+
+The variable name is retained for compatibility with the existing deployment environment; requests are sent to NVIDIA's API endpoint, not OpenAI.
+
+For offline/local validation, use the mock-enabled config at `config/rag_config.local.yaml`.
 
 ## Configuration Templates
 
-- `config/rag_config.yaml`: production-oriented template with environment-variable API keys and OpenAI-only providers
+- `config/rag_config.yaml`: production configuration using NVIDIA embeddings (`nvidia/nemotron-3-embed-1b`) and the NVIDIA-hosted `openai/gpt-oss-20b` LLM through `https://integrate.api.nvidia.com/v1`
 - `config/rag_config.local.yaml`: local mock mode for testing the full CLI flow without external services
+
+The production embedding model uses a 2048-dimensional FAISS index. Embedding requests use NVIDIA's query/passage input modes so indexing and retrieval use the model as intended.
 
 ## CLI Usage
 
@@ -70,13 +84,16 @@ The FastAPI API can run on Vercel as a portfolio demo. Each browser session gets
 
 ### Temporary demo sessions
 
-- Uploads are kept only in the active server runtime for that session.
+- Uploaded documents are kept only in the active server runtime for that session.
 - A session expires after 30 minutes of inactivity by default (`RAG_SESSION_TTL_SECONDS`).
-- Documents are never written to the repository or a persistent vector database.
+- Documents are never written to the repository, Supabase, Pinecone, or another persistent vector database.
 - Closing the browser removes the session-only cookie; the server-side session is also cleaned up by the inactivity TTL.
 - Because Vercel serverless instances are ephemeral, this mode is intentionally a demo/portfolio architecture rather than a durable multi-user knowledge base.
 - PDF and TXT uploads are supported, with a 10 MB per-file limit.
+- Each session allows up to 5 unique document uploads.
 - Re-uploading the same document replaces its previous indexed copy instead of consuming another session document slot.
+- Query and ingestion endpoints have lightweight per-client rate limits.
+- API responses are marked `no-store` to avoid caching session data.
 
 `RAG_SESSION_TTL_SECONDS` can be changed for a different demo timeout.
 
@@ -116,5 +133,6 @@ pytest -q tests/test_performance.py
 
 - `load_config()` supports YAML and JSON files.
 - Provider-specific settings live under `embedding.provider_config` and `llm.provider_config`.
-- The public production configuration uses OpenAI-only providers; local mock configuration remains available for offline testing.
+- The public production configuration uses NVIDIA-hosted providers; local mock configuration remains available for offline testing.
 - The CLI uses the same `RAGPipeline` and provider abstractions as the Python API.
+- The public demo intentionally does not use persistent vector storage.
