@@ -1,16 +1,20 @@
-# Production-oriented configuration for the RAG Digital Twin.
+# NVIDIA-powered production configuration for the RAG Digital Twin.
 
 embedding:
-  provider: "openai"
-  model: "text-embedding-3-small"
+  provider: "nvidia"
+  model: "nvidia/llama-nemotron-embed-1b-v2"
   provider_config:
-    api_key: "${OPENAI_API_KEY}"
-    dimension: 1536
+    api_key: "${NVIDIA_API_KEY}"
+    base_url: "https://integrate.api.nvidia.com/v1"
+    dimension: 2048
+
 llm:
-  provider: "openai"
-  model: "gpt-4o-mini"
+  provider: "nvidia"
+  model: "nvidia/nemotron-3-nano-30b-a3b"
   provider_config:
-    api_key: "${OPENAI_API_KEY}"
+    api_key: "${NVIDIA_API_KEY}"
+    base_url: "https://integrate.api.nvidia.com/v1"
+
 document_processing:
   chunk_size: 1000
   chunk_overlap: 200
