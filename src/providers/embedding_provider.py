@@ -202,6 +202,77 @@ class OpenAIEmbeddingProvider(EmbeddingModel):
         return vector + [0.0] * (self.dimension - len(vector))
 
 
+class NVIDIAEmbeddingProvider(EmbeddingModel):
+    """NVIDIA NIM embeddings provider using the OpenAI-compatible embeddings API."""
+
+    provider_name = "nvidia"
+
+    def __init__(self, model_name: str = "nvidia/llama-nemotron-embed-1b-v2",
+                 api_key: Optional[str] = None,
+                 base_url: str = "https://integrate.api.nvidia.com/v1",
+                 dimension: int = 2048, mock_embeddings: bool = False) -> None:
+        super().__init__(model_name=model_name, dimension=dimension)
+        self.api_key = api_key or os.getenv("NVIDIA_API_KEY")
+        self.base_url = base_url
+        self.mock_embeddings = mock_embeddings
+
+    def load_model(self) -> Any:
+        if self._loaded_model is not None:
+            return self._loaded_model
+        if self.mock_embeddings:
+            self._loaded_model = "mock-nvidia-model"
+            self._loaded_backend = "mock"
+            return self._loaded_model
+        if not self.api_key:
+            raise EmbeddingGenerationError(
+                "NVIDIA API key is required to load embeddings",
+                ErrorCode.EMBEDDING_MODEL_NOT_FOUND, self.model_name)
+        try:
+            from openai import OpenAI
+        except Exception as exc:
+            raise EmbeddingGenerationError(
+                "OpenAI-compatible client library is not available",
+                ErrorCode.EMBEDDING_MODEL_NOT_FOUND, self.model_name, cause=exc) from exc
+        self._loaded_model = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self._loaded_backend = "nvidia"
+        return self._loaded_model
+
+    def embed_text(self, text: str) -> List[float]:
+        normalized = self._validate_text(text)
+        if self.mock_embeddings:
+            return self._mock_embedding(normalized)
+        try:
+            response = self.load_model().embeddings.create(
+                model=self.model_name, input=normalized,
+                extra_body={"input_type": "query"})
+            return self._coerce_dimension(list(response.data[0].embedding))
+        except Exception as exc:
+            raise EmbeddingGenerationError(
+                f"NVIDIA embedding generation failed: {exc}",
+                ErrorCode.EMBEDDING_API_ERROR, self.model_name, cause=exc) from exc
+
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        normalized = [self._validate_text(text) for text in texts]
+        if self.mock_embeddings:
+            return [self._mock_embedding(text) for text in normalized]
+        try:
+            response = self.load_model().embeddings.create(
+                model=self.model_name, input=normalized,
+                extra_body={"input_type": "passage"})
+            return [self._coerce_dimension(list(item.embedding)) for item in response.data]
+        except Exception as exc:
+            raise EmbeddingGenerationError(
+                f"NVIDIA batch embedding generation failed: {exc}",
+                ErrorCode.EMBEDDING_API_ERROR, self.model_name, cause=exc) from exc
+
+    def _coerce_dimension(self, vector: List[float]) -> List[float]:
+        if len(vector) != self.dimension:
+            raise EmbeddingGenerationError(
+                f"NVIDIA embedding dimension mismatch: expected {self.dimension}, got {len(vector)}",
+                ErrorCode.EMBEDDING_API_ERROR, self.model_name)
+        return vector
+
+
 class HuggingFaceEmbeddingProvider(EmbeddingModel):
     """
     Hugging Face embeddings provider with optional deterministic mock mode.
