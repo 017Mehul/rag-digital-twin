@@ -193,7 +193,11 @@ class ErrorHandler:
         self.error_counts[error_key] = self.error_counts.get(error_key, 0) + 1
         
         if self.logger:
-            self.logger.error(f"RAG Error: {error}", extra={"context": context, "error_details": error.to_dict()})
+            self.logger.error(
+                "RAG Error: %s",
+                f"{error.component}:{error.error_code.value}",
+                extra={"context": {"operation": context.get("operation", "unknown")}},
+            )
         
         return {
             "error": True,
@@ -210,7 +214,11 @@ class ErrorHandler:
         self.error_counts[error_key] = self.error_counts.get(error_key, 0) + 1
         
         if self.logger:
-            self.logger.error(f"Unexpected error: {error}", extra={"context": context})
+            self.logger.error(
+                "Unexpected error: %s",
+                type(error).__name__,
+                extra={"context": {"operation": context.get("operation", "unknown")}},
+            )
         
         return {
             "error": True,
