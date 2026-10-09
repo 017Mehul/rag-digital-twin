@@ -1,4 +1,8 @@
 (() => {
+  function csrfToken() {
+    return document.cookie.split("; ").find((entry) => entry.startsWith("rag_csrf="))?.split("=").slice(1).join("=") || "";
+  }
+
   const content = document.querySelector('.content');
   const originalContent = content?.innerHTML;
   const navItems = [...document.querySelectorAll('[data-section]')];
