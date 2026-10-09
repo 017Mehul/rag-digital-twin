@@ -4,7 +4,7 @@ embedding:
   provider: "nvidia"
   model: "nvidia/llama-nemotron-embed-1b-v2"
   provider_config:
-    api_key: "${NVIDIA_API_KEY}"
+    api_key: "${OPENAI_API_KEY}"
     base_url: "https://integrate.api.nvidia.com/v1"
     dimension: 2048
 
