@@ -7,7 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from .exceptions import DocumentProcessingError, ErrorCode
 from .models.document_chunk import DocumentChunk
