@@ -78,6 +78,10 @@ def _validate_csrf(request: Request) -> None:
     allowed.add(str(request.base_url).rstrip("/"))
     if candidate.rstrip("/") not in allowed:
         raise HTTPException(status_code=403, detail="Cross-site request blocked.")
+    csrf_cookie = request.cookies.get(CSRF_COOKIE)
+    csrf_header = request.headers.get("X-CSRF-Token")
+    if not csrf_cookie or not csrf_header or not secrets.compare_digest(csrf_cookie, csrf_header):
+        raise HTTPException(status_code=403, detail="CSRF validation failed.")
 
 
 def _validate_upload(filename: str, content: bytes, suffix: str) -> None:
