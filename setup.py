@@ -8,9 +8,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 RUNTIME_REQUIREMENTS = [
-    "numpy>=1.21.0", "faiss-cpu>=1.7.0", "openai>=1.0.0",
-    "fastapi>=0.110.0", "pydantic>=2.0.0", "python-multipart>=0.0.9",
-    "PyPDF2>=3.0.0", "pyyaml>=6.0", "python-dotenv>=0.19.0",
+    "numpy>=2.5.3", "faiss-cpu>=1.15.1", "openai>=3.13.0",
+    "fastapi>=0.143.0", "pydantic>=2.14.0", "python-multipart>=0.0.32",
+    "pypdf>=6.19.0", "pyyaml>=6.0", "python-dotenv>=0.19.0",
 ]
 
 setup(
@@ -38,6 +38,7 @@ setup(
             "black>=22.0.0",
             "flake8>=5.0.0",
             "mypy>=0.991",
+            "pip-audit>=2.9.0",
             "pre-commit>=2.20.0",
         ],
         "test": [
