@@ -1,6 +1,10 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
-  const $$ = (selector) => [...document.querySelectorAll(selector)];
+  const $ = (selector) => [...document.querySelectorAll(selector)];
+
+  function csrfToken() {
+    return document.cookie.split("; ").find((entry) => entry.startsWith("rag_csrf="))?.split("=").slice(1).join("=") || "";
+  }
 
   function applyTheme() {
     const dark = localStorage.getItem('rag-theme') === 'dark';
@@ -74,7 +78,7 @@
     if (answerCard) answerCard.hidden = true;
     if (submit) { submit.disabled = true; submit.textContent = '…'; }
     try {
-      const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ query }) });
+      const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() }, body: JSON.stringify({ query }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || data.error || 'The query could not be completed.');
       if ($('#answer')) $('#answer').textContent = data.response_text || data.answer || 'No response returned.';
