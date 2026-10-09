@@ -17,10 +17,12 @@ from src.exceptions import (
 from .embedding_provider import (
     EmbeddingModel,
     HuggingFaceEmbeddingProvider,
+    NVIDIAEmbeddingProvider,
     OpenAIEmbeddingProvider,
 )
 from .llm_provider import (
     HuggingFaceLLMProvider,
+    NVIDIALLMProvider,
     LLMProvider,
     OpenAILLMProvider,
 )
@@ -225,6 +227,11 @@ class ProviderFactory:
             default_model_name="text-embedding-3-small",
             supported_kwargs=frozenset({"api_key", "client", "dimension", "mock_embeddings"}),
         ),
+        "nvidia": ProviderRegistration(
+            provider_class=NVIDIAEmbeddingProvider,
+            default_model_name="nvidia/llama-nemotron-embed-1b-v2",
+            supported_kwargs=frozenset({"api_key", "base_url", "dimension", "mock_embeddings"}),
+        ),
         "huggingface": ProviderRegistration(
             provider_class=HuggingFaceEmbeddingProvider,
             default_model_name="sentence-transformers/all-MiniLM-L6-v2",
@@ -236,6 +243,11 @@ class ProviderFactory:
             provider_class=OpenAILLMProvider,
             default_model_name="gpt-4o-mini",
             supported_kwargs=frozenset({"api_key", "client", "mock_responses"}),
+        ),
+        "nvidia": ProviderRegistration(
+            provider_class=NVIDIALLMProvider,
+            default_model_name="nvidia/nemotron-3-nano-30b-a3b",
+            supported_kwargs=frozenset({"api_key", "base_url", "client", "mock_responses"}),
         ),
         "huggingface": ProviderRegistration(
             provider_class=HuggingFaceLLMProvider,
