@@ -30,7 +30,7 @@
       const body = new FormData();
       body.append('file', file);
       try {
-        const response = await fetch('/api/ingest', { method: 'POST', body });
+        const response = await fetch('/api/ingest', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken() }, body });
         const raw = await response.text();
         let data;
         try { data = JSON.parse(raw); } catch { throw new Error(raw || 'Upload failed.'); }
