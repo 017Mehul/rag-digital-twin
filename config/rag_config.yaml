@@ -2,7 +2,7 @@
 
 embedding:
   provider: "nvidia"
-  model: "nvidia/llama-nemotron-embed-1b-v2"
+  model: "nvidia/nemotron-3-embed-1b"
   provider_config:
     api_key: "${OPENAI_API_KEY}"
     base_url: "https://integrate.api.nvidia.com/v1"
@@ -10,7 +10,7 @@ embedding:
 
 llm:
   provider: "nvidia"
-  model: "nvidia/nemotron-3-nano-30b-a3b"
+  model: "openai/gpt-oss-20b"
   provider_config:
     api_key: "${OPENAI_API_KEY}"
     base_url: "https://integrate.api.nvidia.com/v1"
