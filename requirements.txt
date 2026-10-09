@@ -13,7 +13,7 @@ pypdf>=6.19.0
 
 # Configuration and utilities
 pyyaml>=6.0
-python-dotenv>=0.19.0
+python-dotenv>=1.2.4
 
 # Testing framework
 pytest>=7.0.0
