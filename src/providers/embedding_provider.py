@@ -212,7 +212,7 @@ class NVIDIAEmbeddingProvider(EmbeddingModel):
                  base_url: str = "https://integrate.api.nvidia.com/v1",
                  dimension: int = 2048, mock_embeddings: bool = False) -> None:
         super().__init__(model_name=model_name, dimension=dimension)
-        self.api_key = api_key or os.getenv("NVIDIA_API_KEY")
+        self.api_key = api_key or os.getenv("NVIDIA_API_KEY") or os.getenv("OPENAI_API_KEY")
         self.base_url = base_url
         self.mock_embeddings = mock_embeddings
 
