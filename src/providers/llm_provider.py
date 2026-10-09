@@ -159,6 +159,64 @@ class OpenAILLMProvider(LLMProvider):
             ) from exc
 
 
+class NVIDIALLMProvider(LLMProvider):
+    """NVIDIA NIM chat provider using the OpenAI-compatible API."""
+
+    provider_name = "nvidia"
+
+    def __init__(self, model_name: str = "nvidia/nemotron-3-nano-30b-a3b",
+                 api_key: Optional[str] = None,
+                 base_url: str = "https://integrate.api.nvidia.com/v1",
+                 client: Optional[Any] = None, mock_responses: bool = False) -> None:
+        super().__init__(model_name=model_name)
+        self.api_key = api_key or os.getenv("NVIDIA_API_KEY")
+        self.base_url = base_url
+        self.client = client
+        self.mock_responses = mock_responses
+
+    def load_model(self) -> Any:
+        if self._loaded_model is not None:
+            return self._loaded_model
+        if self.mock_responses:
+            self._loaded_model = "mock-nvidia-llm"
+            self._loaded_backend = "mock"
+            return self._loaded_model
+        if self.client is not None:
+            self._loaded_model = self.client
+            self._loaded_backend = "client"
+            return self._loaded_model
+        if not self.api_key:
+            raise ResponseGenerationError(
+                "NVIDIA API key is required to load the LLM provider",
+                ErrorCode.LLM_MODEL_NOT_FOUND, self.model_name)
+        try:
+            from openai import OpenAI
+        except Exception as exc:
+            raise ResponseGenerationError(
+                "OpenAI-compatible client library is not available",
+                ErrorCode.LLM_MODEL_NOT_FOUND, self.model_name, cause=exc) from exc
+        self._loaded_model = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self._loaded_backend = "nvidia"
+        return self._loaded_model
+
+    def generate(self, prompt: str, max_tokens: int = 500, temperature: float = 0.1) -> str:
+        normalized_prompt = self._validate_text(prompt)
+        client = self.load_model()
+        if self.mock_responses:
+            return self._mock_response(normalized_prompt)
+        try:
+            response = client.chat.completions.create(
+                model=self.model_name,
+                messages=[{"role": "user", "content": normalized_prompt}],
+                max_tokens=max_tokens, temperature=temperature,
+            )
+            return (response.choices[0].message.content or "").strip()
+        except Exception as exc:
+            raise ResponseGenerationError(
+                f"NVIDIA response generation failed: {exc}",
+                ErrorCode.LLM_API_ERROR, self.model_name, cause=exc) from exc
+
+
 class HuggingFaceLLMProvider(LLMProvider):
     """
     Hugging Face text-generation provider with optional deterministic mock mode.
