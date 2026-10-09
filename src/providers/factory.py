@@ -246,7 +246,7 @@ class ProviderFactory:
         ),
         "nvidia": ProviderRegistration(
             provider_class=NVIDIALLMProvider,
-            default_model_name="nvidia/nemotron-3-nano-30b-a3b",
+            default_model_name="openai/gpt-oss-20b",
             supported_kwargs=frozenset({"api_key", "base_url", "client", "mock_responses"}),
         ),
         "huggingface": ProviderRegistration(
