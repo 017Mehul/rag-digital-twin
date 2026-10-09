@@ -182,7 +182,10 @@ async def ingest(
         failures = list(getattr(result, "errors", []) or [])
         failed_documents = getattr(result, "failed_documents", {}) or {}
         if not successful and failed_documents:
-            failures.extend(str(value) for value in failed_documents.values())
+            if hasattr(failed_documents, "values"):
+                failures.extend(str(value) for value in failed_documents.values())
+            else:
+                failures.append(str(failed_documents))
         if not successful:
             raise HTTPException(status_code=422, detail=failures or "Document ingestion failed.")
         existing_document_ids.add(document_id)
