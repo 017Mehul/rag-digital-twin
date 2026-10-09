@@ -207,7 +207,7 @@ class NVIDIAEmbeddingProvider(EmbeddingModel):
 
     provider_name = "nvidia"
 
-    def __init__(self, model_name: str = "nvidia/llama-nemotron-embed-1b-v2",
+    def __init__(self, model_name: str = "nvidia/nemotron-3-embed-1b",
                  api_key: Optional[str] = None,
                  base_url: str = "https://integrate.api.nvidia.com/v1",
                  dimension: int = 2048, mock_embeddings: bool = False) -> None:
