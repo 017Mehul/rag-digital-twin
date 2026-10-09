@@ -1,15 +1,15 @@
 # Core dependencies
-numpy>=1.21.0
-faiss-cpu>=1.7.0
-openai>=1.0.0
+numpy>=2.5.3
+faiss-cpu>=1.15.1
+openai>=3.13.0
 
 # Web API
-fastapi>=0.110.0
-pydantic>=2.0.0
-python-multipart>=0.0.9
+fastapi>=0.143.0
+pydantic>=2.14.0
+python-multipart>=0.0.32
 
 # Document processing
-PyPDF2>=3.0.0
+pypdf>=6.19.0
 
 # Configuration and utilities
 pyyaml>=6.0
