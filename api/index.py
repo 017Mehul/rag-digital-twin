@@ -7,6 +7,7 @@ import time
 from collections import Counter, defaultdict, deque
 from pathlib import Path
 import hashlib
+import secrets
 import tempfile
 from typing import Any
 
@@ -21,12 +22,14 @@ logger = logging.getLogger("rag_digital_twin.api")
 ALLOWED_EXTENSIONS = {".pdf", ".txt"}
 MAX_FILE_BYTES = 10 * 1024 * 1024
 SESSION_COOKIE = "rag_session"
+CSRF_COOKIE = "rag_csrf"
 SESSION_TTL_SECONDS = int(os.getenv("RAG_SESSION_TTL_SECONDS", "1800"))
 
 _RATE_WINDOW_SECONDS = 60
 _DEFAULT_QUERY_RATE_LIMIT = 30
 _DEFAULT_INGEST_RATE_LIMIT = 3
 _requests_by_client: dict[tuple[str, str], deque[float]] = defaultdict(deque)
+_MAX_RATE_LIMIT_BUCKETS = 10_000
 
 
 class QueryRequest(BaseModel):
@@ -44,6 +47,10 @@ def _rate_limit(request: Request, action: str, default_limit: int) -> None:
 
     client = request.client.host if request.client else "unknown"
     now = time.monotonic()
+    if len(_requests_by_client) > _MAX_RATE_LIMIT_BUCKETS:
+        stale = [key for key, values in _requests_by_client.items() if not values or now - values[-1] >= _RATE_WINDOW_SECONDS]
+        for key in stale:
+            _requests_by_client.pop(key, None)
     bucket = _requests_by_client[(action, client)]
     while bucket and now - bucket[0] >= _RATE_WINDOW_SECONDS:
         bucket.popleft()
@@ -54,6 +61,37 @@ def _rate_limit(request: Request, action: str, default_limit: int) -> None:
             headers={"Retry-After": str(_RATE_WINDOW_SECONDS)},
         )
     bucket.append(now)
+
+
+def _validate_csrf(request: Request) -> None:
+    """Reject cross-site browser requests while keeping CLI/API clients usable."""
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    candidate = origin
+    if not candidate and referer:
+        from urllib.parse import urlsplit
+        parsed = urlsplit(referer)
+        candidate = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else None
+    if not candidate:
+        return
+    allowed = {item.strip().rstrip("/") for item in os.getenv("RAG_ALLOWED_ORIGINS", "").split(",") if item.strip()}
+    allowed.add(str(request.base_url).rstrip("/"))
+    if candidate.rstrip("/") not in allowed:
+        raise HTTPException(status_code=403, detail="Cross-site request blocked.")
+
+
+def _validate_upload(filename: str, content: bytes, suffix: str) -> None:
+    if len(filename) > 255 or any(ord(char) < 32 for char in filename):
+        raise HTTPException(status_code=400, detail="Filename is invalid.")
+    if suffix == ".pdf" and not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="The uploaded PDF content is invalid.")
+    if suffix == ".txt":
+        try:
+            content.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise HTTPException(status_code=400, detail="The uploaded text file is not valid UTF-8.") from exc
+        if b"\x00" in content:
+            raise HTTPException(status_code=400, detail="The uploaded text file contains invalid binary data.")
 
 
 def _session_pipeline(request: Request) -> Any:
@@ -99,11 +137,19 @@ def build_document_summary(pipeline: Any) -> list[dict[str, Any]]:
 
 
 @app.middleware("http")
-async def no_store_api_responses(request: Request, call_next):
+async def security_headers(request: Request, call_next):
     response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     if request.url.path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
+        if request.method in {"GET", "HEAD"} and not request.cookies.get(CSRF_COOKIE):
+            response.set_cookie(CSRF_COOKIE, secrets.token_urlsafe(32), httponly=False, samesite="lax", secure=os.getenv("VERCEL") == "1")
+    if request.url.scheme == "https" or os.getenv("VERCEL") == "1":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
 
 
@@ -132,6 +178,7 @@ async def ingest(
     file: UploadFile = File(...),
 ) -> dict[str, Any]:
     _rate_limit(request, "ingest", _DEFAULT_INGEST_RATE_LIMIT)
+    _validate_csrf(request)
 
     filename = Path(file.filename or "document").name
     suffix = Path(filename).suffix.lower()
@@ -143,6 +190,7 @@ async def ingest(
         raise HTTPException(status_code=400, detail="The uploaded file is empty.")
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="File size must be 10 MB or less.")
+    _validate_upload(filename, content, suffix)
 
     session_id = request.cookies.get(SESSION_COOKIE)
     pipeline = get_session_pipeline(session_id or "")
@@ -206,6 +254,7 @@ async def ingest(
 @app.post("/api/query")
 def query(request: Request, payload: QueryRequest) -> dict[str, Any]:
     _rate_limit(request, "query", _DEFAULT_QUERY_RATE_LIMIT)
+    _validate_csrf(request)
     pipeline = _session_pipeline(request)
     if len(pipeline.vector_store) <= 0:
         raise HTTPException(
