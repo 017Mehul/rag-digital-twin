@@ -193,7 +193,7 @@ async def ingest(
     if not content:
         raise HTTPException(status_code=400, detail="The uploaded file is empty.")
     if len(content) > MAX_FILE_BYTES:
-        raise HTTPException(status_code=413, detail="File size must be 10 MB or less.")
+        raise HTTPException(status_code=413, detail="File size must be 4 MB or less.")
     _validate_upload(filename, content, suffix)
 
     document_id = hashlib.sha256(content).hexdigest()
