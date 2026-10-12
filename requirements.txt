@@ -25,4 +25,4 @@ httpx>=0.27.0
 # Development tools
 black>=22.0.0
 flake8>=5.0.0
-mypy>=0.991
+mypy>=2.4.0
