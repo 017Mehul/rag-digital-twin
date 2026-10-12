@@ -112,7 +112,7 @@ Security controls are implemented at the API layer rather than relying only on f
 - **Sensitive-data redaction in logs**
 - **No source maps shipped with the application**
 - **Automated dependency vulnerability auditing**
-- **Weekly scheduled dependency audits**
+- **Weekly scheduled vulnerability audits and dependency updates**
 
 ### Attack-surface review
 

@@ -78,7 +78,12 @@
     while (documentValues.length < 7) documentValues.push(0);
 
     function draw(values, names) {
-      const max = Math.max(...values, 1);
+      const maxValue = Math.max(...values, 0);
+      const max = maxValue || 1;
+      const scaleLabels = $(".y-labels span");
+      scaleLabels.forEach((label, index) => {
+        label.textContent = String(Math.round(maxValue * (1 - index / Math.max(scaleLabels.length - 1, 1))));
+      });
       bars.forEach((bar, index) => {
         const value = values[index] || 0;
         bar.style.height = value ? `${Math.max(10, (value / max) * 100)}%` : "10px";
@@ -122,7 +127,7 @@
       const end = cursor + (Number(count || 0) / total) * 100;
       stops.push(`${palette[index % palette.length]} ${cursor}% ${end}%`);
       cursor = end;
-      return `<li><span class="dot other"></span>${escapeHtml(type)} <b>${escapeHtml(count)}</b></li>`;
+      return `<li><span class="dot" style="background:${palette[index % palette.length]}"></span>${escapeHtml(type)} <b>${escapeHtml(count)}</b></li>`;
     }).join("");
     donut.style.background = `conic-gradient(${stops.join(",")})`;
   }
@@ -134,7 +139,7 @@
     input.addEventListener("input", () => {
       const term = input.value.trim().toLowerCase();
       $$(".table-row").forEach((row) => { row.hidden = Boolean(term) && !row.textContent.toLowerCase().includes(term); });
-      $$(".history-item").forEach((item) => { item.hidden = Boolean(term) && !item.textContent.toLowerCase().includes(term); });
+      $(".history-item, .library-item").forEach((item) => { item.hidden = Boolean(term) && !item.textContent.toLowerCase().includes(term); });
     });
   }
 
