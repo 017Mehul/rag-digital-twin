@@ -30,6 +30,12 @@
     'Settings': `<div class="section-page"><h1>Settings</h1><p>Personalize your workspace.</p><div class="section-card"><label for="profile-name">Display name</label><input id="profile-name" class="settings-input" placeholder="Enter your name"/><button class="primary-action" id="save-profile">Save profile</button><div class="section-note" id="profile-note"></div></div><div class="section-card"><h2>Appearance</h2><button class="primary-action" id="settings-theme">Toggle dark / light mode</button></div></div>`
   };
 
+  async function ensureCsrfToken() {
+    if (csrfToken()) return csrfToken();
+    try { await fetch('/api/health', { method: 'GET', credentials: 'same-origin', cache: 'no-store' }); } catch (_) {}
+    return csrfToken();
+  }
+
   function showDashboard() {
     dashboardParts.forEach((part) => { if (part) part.hidden = false; });
     sectionView.hidden = true;
@@ -75,7 +81,9 @@
         const result = document.querySelector('#section-query-result');
         result.textContent = 'Searching…';
         try {
-          const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() }, body: JSON.stringify({ query }) });
+          const token = await ensureCsrfToken();
+          if (!token) throw new Error('Security token could not be initialized. Refresh the page and try again.');
+          const response = await fetch('/api/query', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token }, body: JSON.stringify({ query }) });
           const data = await response.json();
           if (!response.ok) throw new Error(data.detail || data.error || 'Query failed');
           result.textContent = data.response_text || data.answer || 'No answer returned.';
