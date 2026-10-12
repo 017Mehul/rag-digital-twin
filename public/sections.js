@@ -82,7 +82,7 @@
       '<div class="section-card docs-grid"><div><h2>API</h2><p>FastAPI serverless entrypoint with session-based FAISS storage.</p></div><div><h2>Embeddings</h2><p>NVIDIA <code>nvidia/nemotron-3-embed-1b</code>, 2048-dimensional vectors.</p></div><div><h2>Generation</h2><p>NVIDIA-hosted <code>openai/gpt-oss-20b</code> through the OpenAI-compatible API.</p></div><div><h2>Security</h2><p>CSRF protection, rate limiting, upload validation, secure session cookies, security headers, and redacted logs.</p></div></div><button class="primary-action" data-action="status">Open live status →</button>'),
 
     'Ingest Documents': () => page('Ingest Documents', 'Upload PDF or TXT files and index them for this temporary browser session.',
-      '<div class="section-card"><h2>Select document</h2><form id="ingest-form" class="ingest-form"><input id="document-file" name="file" type="file" accept=".pdf,.txt,application/pdf,text/plain" required/><p class="muted">PDF and TXT only · maximum 10 MB · maximum 5 unique documents per session.</p><button type="submit" class="primary-action">Upload and Index →</button></form><div id="ingest-result" class="message" hidden></div></div>')
+      '<div class="section-card"><h2>Select document</h2><form id="ingest-form" class="ingest-form"><input id="document-file" name="file" type="file" accept=".pdf,.txt,application/pdf,text/plain" required/><p class="muted">PDF and TXT only · maximum 4 MB · maximum 5 unique documents per session.</p><button type="submit" class="primary-action">Upload and Index →</button></form><div id="ingest-result" class="message" hidden></div></div>')
   };
 
   async function renderLibrary() {
@@ -166,7 +166,7 @@
       const answer = data.response_text || data.answer || 'No answer returned.';
       const sources = data.sources || [];
       const history = readHistory();
-      history.unshift({ query, answer, sources, time: new Date().toLocaleString() });
+      history.unshift({ query, answer, sources, time: new Date().toLocaleString(), timestamp: new Date().toISOString() });
       localStorage.setItem('rag-history', JSON.stringify(history.slice(0, 20)));
       result.innerHTML = `<div class="answer-header"><span>Grounded answer</span><span>${escapeHtml(data.model_used || 'NVIDIA')}</span></div><div class="answer-text">${escapeHtml(answer)}</div><div class="answer-meta">Confidence: ${data.confidence_score == null ? '—' : escapeHtml(Number(data.confidence_score).toFixed(3))} · Context used: ${data.context_used ? 'Yes' : 'No'}</div><div class="result-sources"><strong>Sources</strong>${sources.length ? sources.map((source) => `<span>${escapeHtml(typeof source === 'string' ? source : (source.source_file || source.name || JSON.stringify(source)))}</span>`).join('') : '<span>None returned</span>'}</div>`;
       window.dispatchEvent(new CustomEvent('rag:dashboard-refresh'));

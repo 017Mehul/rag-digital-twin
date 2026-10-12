@@ -37,7 +37,7 @@
 
   function saveHistory(query, answer, sources) {
     const history = readHistory();
-    history.unshift({ query, answer, sources, time: new Date().toLocaleString() });
+    history.unshift({ query, answer, sources, time: new Date().toLocaleString(), timestamp: new Date().toISOString() });
     localStorage.setItem("rag-history", JSON.stringify(history.slice(0, 20)));
   }
 
@@ -68,7 +68,7 @@
       day.setHours(0, 0, 0, 0);
       day.setDate(day.getDate() - (6 - index));
       return history.filter((item) => {
-        const date = new Date(item.time);
+        const date = new Date(item.timestamp || item.time);
         if (Number.isNaN(date.getTime())) return false;
         date.setHours(0, 0, 0, 0);
         return date.getTime() === day.getTime();

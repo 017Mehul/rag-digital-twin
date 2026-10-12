@@ -20,7 +20,7 @@ app = FastAPI(title="RAG Digital Twin API", version="1.5.0")
 logger = logging.getLogger("rag_digital_twin.api")
 
 ALLOWED_EXTENSIONS = {".pdf", ".txt"}
-MAX_FILE_BYTES = 10 * 1024 * 1024
+MAX_FILE_BYTES = 4 * 1024 * 1024
 SESSION_COOKIE = "rag_session"
 CSRF_COOKIE = "rag_csrf"
 SESSION_TTL_SECONDS = int(os.getenv("RAG_SESSION_TTL_SECONDS", "1800"))
@@ -189,18 +189,18 @@ async def ingest(
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Supported files: PDF, TXT.")
 
-    content = await file.read()
+    content = await file.read(MAX_FILE_BYTES + 1)
     if not content:
         raise HTTPException(status_code=400, detail="The uploaded file is empty.")
     if len(content) > MAX_FILE_BYTES:
         raise HTTPException(status_code=413, detail="File size must be 10 MB or less.")
     _validate_upload(filename, content, suffix)
 
+    document_id = hashlib.sha256(content).hexdigest()
     session_id = request.cookies.get(SESSION_COOKIE)
     pipeline = get_session_pipeline(session_id or "")
     if pipeline is None:
         session_id, pipeline = create_session()
-        existing_uploads = 0
         response.set_cookie(
             SESSION_COOKIE,
             session_id,
@@ -210,16 +210,23 @@ async def ingest(
         )
 
     existing_document_ids = set(getattr(pipeline, "_demo_document_ids", set()))
-    existing_uploads = len(existing_document_ids)
-    if existing_uploads >= 5:
-        raise HTTPException(status_code=429, detail="This demo session allows up to 5 document uploads.", headers={"Retry-After": str(SESSION_TTL_SECONDS)})
+    if document_id in existing_document_ids:
+        return {
+            "success": True,
+            "filename": filename,
+            "documents": 0,
+            "chunks": 0,
+            "embeddings": 0,
+            "message": f"{filename} has identical content already indexed in this session; no duplicate was added.",
+        }
+    if len(existing_document_ids) >= 5:
+        raise HTTPException(status_code=429, detail="This demo session allows up to 5 unique documents.", headers={"Retry-After": str(SESSION_TTL_SECONDS)})
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temporary:
         temporary.write(content)
         temporary_path = Path(temporary.name)
 
     try:
-        document_id = hashlib.sha256(content).hexdigest()
         metadata = {
             "document_id": document_id,
             "source_file": filename,

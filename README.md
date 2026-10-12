@@ -70,7 +70,7 @@ RAG Digital Twin combines document ingestion, intelligent chunking, NVIDIA-hoste
 
 ## 🚀 Production Demo
 
-The public deployment runs on **Vercel + FastAPI** and intentionally uses **temporary, in-memory FAISS sessions** instead of a persistent vector database.
+The public deployment runs on **Vercel + FastAPI** and intentionally uses **temporary, in-memory FAISS sessions** instead of a persistent vector database. The upload limit is 4 MB to stay below Vercel Functions' 4.5 MB request-body ceiling, including multipart overhead.
 
 ### Session behavior
 
@@ -80,8 +80,8 @@ The public deployment runs on **Vercel + FastAPI** and intentionally uses **temp
 - Documents are not stored in Supabase, Pinecone, or another persistent vector database.
 - Vercel instance recycling can discard in-memory state — intentional for this portfolio architecture.
 - Up to **5 unique documents** can be uploaded per session.
-- Re-uploading the same document replaces its indexed copy without consuming another slot.
-- Maximum file size: **10 MB**.
+- Uploading identical content again is deduplicated and does not consume another slot; changed content counts as a separate document.
+- Maximum file size: **4 MB**.
 - Supported formats: **PDF and TXT**.
 - Query and ingestion endpoints use lightweight per-client rate limits.
 - API responses use `no-store` caching headers.
