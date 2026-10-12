@@ -78,7 +78,10 @@
     if (answerCard) answerCard.hidden = true;
     if (submit) { submit.disabled = true; submit.textContent = '…'; }
     try {
-      const response = await fetch('/api/query', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken() }, body: JSON.stringify({ query }) });
+      let token = csrfToken();
+      if (!token) { try { await fetch('/api/health', { credentials: 'same-origin', cache: 'no-store' }); } catch (_) {} token = csrfToken(); }
+      if (!token) throw new Error('Security token could not be initialized. Refresh the page and try again.');
+      const response = await fetch('/api/query', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': token }, body: JSON.stringify({ query }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || data.error || 'The query could not be completed.');
       if ($('#answer')) $('#answer').textContent = data.response_text || data.answer || 'No response returned.';
@@ -93,4 +96,5 @@
   applyProfile();
   clearDemoContent();
   loadDashboard();
+  window.addEventListener('rag:dashboard-refresh', loadDashboard);
 })();
