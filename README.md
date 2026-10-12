@@ -112,7 +112,7 @@ Security controls are implemented at the API layer rather than relying only on f
 - **Sensitive-data redaction in logs**
 - **No source maps shipped with the application**
 - **Automated dependency vulnerability auditing**
-- **Weekly Dependabot updates**
+- **Weekly scheduled dependency audits**
 
 ### Attack-surface review
 
@@ -161,7 +161,6 @@ rag-digital-twin/
 ├── public/
 │   ├── index.html            # Web dashboard
 │   ├── app.js                # Dashboard behavior
-│   ├── ingest.js             # Upload flow
 │   ├── sections.js           # Dashboard sections
 │   ├── styles.css            # Responsive UI
 │   └── theme.js              # Theme handling
@@ -283,7 +282,7 @@ Run the complete suite:
 pytest -q
 ```
 
-The current project test suite passes **120 tests**.
+The repository includes a broad automated test suite covering API behavior, retrieval, providers, ingestion, performance, and integration paths.
 
 Targeted examples:
 
@@ -367,4 +366,4 @@ GitHub: https://github.com/017Mehul
 
 ## 📄 License
 
-See the repository license and project metadata for licensing information.
+No license file is currently included; reuse of the source is subject to the repository's applicable rights unless a license is added.
