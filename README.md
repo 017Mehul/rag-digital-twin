@@ -20,7 +20,7 @@ RAG Digital Twin combines document ingestion, intelligent chunking, NVIDIA-hoste
 - 🛡️ **Security hardening** with CSRF protection, rate limiting, upload validation, secure cookies, security headers, and log redaction
 - 📱 **Responsive dashboard** for desktop, tablet, and mobile
 - 🧪 **Automated test suite** with integration, CLI, property-based, and performance coverage
-- 🔄 **Automated dependency auditing** through GitHub Actions and Dependabot
+- 🔄 **Automated dependency auditing** through GitHub Actions and weekly Dependabot version updates
 
 ---
 
