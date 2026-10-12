@@ -1,7 +1,7 @@
 # Core dependencies
 numpy>=2.5.3
 faiss-cpu>=1.15.1
-openai>=3.13.0
+openai>=3.24.0
 
 # Web API
 fastapi>=0.143.0
