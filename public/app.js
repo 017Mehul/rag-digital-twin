@@ -93,9 +93,4 @@
   applyProfile();
   clearDemoContent();
   loadDashboard();
-
-  const sectionsScript = document.createElement('script');
-  sectionsScript.src = '/sections.js';
-  sectionsScript.defer = false;
-  document.head.appendChild(sectionsScript);
 })();
