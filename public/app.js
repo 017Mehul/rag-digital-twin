@@ -80,7 +80,7 @@
     function draw(values, names) {
       const maxValue = Math.max(...values, 0);
       const max = maxValue || 1;
-      const scaleLabels = $(".y-labels span");
+      const scaleLabels = $$(".y-labels span");
       scaleLabels.forEach((label, index) => {
         label.textContent = String(Math.round(maxValue * (1 - index / Math.max(scaleLabels.length - 1, 1))));
       });
