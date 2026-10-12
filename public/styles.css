@@ -151,3 +151,33 @@
   .status-grid, .status-details-grid, .docs-grid { grid-template-columns:1fr; }
   .query-actions, .settings-row { flex-direction:column; align-items:stretch; }
 }
+
+
+/* Ensure native hidden state wins over component display rules. */
+[hidden] { display: none !important; }
+
+/* Keep navigation available on phones instead of hiding the entire sidebar. */
+@media (max-width: 700px) {
+  .app-shell { display: block; width: 100%; }
+  .sidebar { display: flex; width: 100%; height: auto; padding: 12px; }
+  .brand { margin: 0 4px 12px; gap: 9px; }
+  .brand-mark { font-size: 30px; }
+  .brand strong { font-size: 16px; }
+  .brand span { margin-top: 3px; font-size: 11px; }
+  .nav { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .nav-item { flex-direction: column; justify-content: center; text-align: center; gap: 4px; min-width: 0; padding: 9px 3px; font-size: 10px; line-height: 1.2; }
+  .nav-item span { overflow-wrap: anywhere; }
+  .sidebar-card, .sidebar-quote { display: none; }
+}
+@media (max-width: 400px) {
+  .nav { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nav-item { flex-direction: row; justify-content: flex-start; text-align: left; gap: 10px; padding: 10px; font-size: 12px; }
+}
+@media (min-width: 701px) and (max-width: 1000px) {
+  .topbar { padding: 0 16px; gap: 12px; }
+  .search { width: min(250px, 42vw); }
+  .search input { width: calc(100% - 32px); }
+  .left-column { grid-template-columns: minmax(0, 1fr); }
+  .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dashboard-grid, .left-column, .quick-grid, .panel { min-width: 0; }
+}
