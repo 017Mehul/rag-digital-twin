@@ -17,6 +17,12 @@
     window.location.reload();
   }
 
+  async function ensureCsrfToken() {
+    if (csrfToken()) return csrfToken();
+    try { await fetch('/api/health', { method: 'GET', credentials: 'same-origin', cache: 'no-store' }); } catch (_) {}
+    return csrfToken();
+  }
+
   function showIngest() {
     setActive('Ingest Documents');
     content.innerHTML = `<div class="panel ingest-screen" style="max-width:900px;margin:0 auto;padding:32px"><div class="panel-heading"><div><h1>Ingest Documents</h1><p>Upload PDF or TXT files to index them in your RAG pipeline.</p></div><button class="link-btn" id="back-dashboard">← Dashboard</button></div><form id="ingest-form" style="margin-top:28px;display:grid;gap:18px"><label for="document-file"><b>Select document</b></label><input id="document-file" name="file" type="file" accept=".pdf,.txt" required /><p class="muted">Your upload is available only for this temporary browser session.</p><button type="submit" class="primary-button">Upload and Index</button></form><div id="ingest-result" class="message" hidden style="margin-top:18px"></div></div>`;
@@ -34,7 +40,9 @@
       const body = new FormData();
       body.append('file', file);
       try {
-        const response = await fetch('/api/ingest', { method: 'POST', headers: { 'X-CSRF-Token': csrfToken() }, body });
+        const token = await ensureCsrfToken();
+        if (!token) throw new Error('Security token could not be initialized. Refresh the page and try again.');
+        const response = await fetch('/api/ingest', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-Token': token }, body });
         const raw = await response.text();
         let data;
         try { data = JSON.parse(raw); } catch { throw new Error(raw || 'Upload failed.'); }
