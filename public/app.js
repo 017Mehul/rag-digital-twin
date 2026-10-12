@@ -1,6 +1,6 @@
 (() => {
   const $ = (selector) => document.querySelector(selector);
-  const $ = (selector) => [...document.querySelectorAll(selector)];
+  const $$ = (selector) => [...document.querySelectorAll(selector)];
 
   function csrfToken() {
     return document.cookie.split("; ").find((entry) => entry.startsWith("rag_csrf="))?.split("=").slice(1).join("=") || "";
