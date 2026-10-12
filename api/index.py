@@ -151,7 +151,7 @@ async def security_headers(request: Request, call_next):
         response.headers["Cache-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
         if request.method in {"GET", "HEAD"} and not request.cookies.get(CSRF_COOKIE):
-            response.set_cookie(CSRF_COOKIE, secrets.token_urlsafe(32), httponly=False, samesite="lax", secure=os.getenv("VERCEL") == "1")
+            response.set_cookie(CSRF_COOKIE, secrets.token_urlsafe(32), httponly=False, samesite="lax", secure=os.getenv("VERCEL") == "1", path="/")
     if request.url.scheme == "https" or os.getenv("VERCEL") == "1":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
