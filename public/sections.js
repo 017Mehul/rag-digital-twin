@@ -95,7 +95,7 @@
         target.innerHTML = '<div class="empty-state"><strong>No documents indexed yet.</strong><p>Go to Ingest Documents to add your first PDF or TXT file.</p><button class="primary-action" data-action="ingest">Add a document →</button></div>';
         return;
       }
-      target.innerHTML = docs.map((doc) => `<div class="library-item"><div><strong>${escapeHtml(doc.name)}</strong><small>${escapeHtml(doc.type)} · ${escapeHtml(doc.chunks)} chunks · ${escapeHtml(doc.date_added || 'Current session')}</small></div><span class="indexed">● ${escapeHtml(doc.status || 'Indexed')}</span></div>`).join('');
+      target.innerHTML = docs.map((doc) => `<div class="library-item${localStorage.getItem('rag-last-uploaded') === doc.name ? ' uploaded-highlight' : ''}"><div><strong>${escapeHtml(doc.name)}</strong><small>${escapeHtml(doc.type)} · ${escapeHtml(doc.chunks)} chunks · ${escapeHtml(doc.date_added || 'Current session')}</small></div><span class="indexed">● ${escapeHtml(doc.status || 'Indexed')}</span></div>`).join('');
     } catch (_) {
       target.innerHTML = '<div class="empty-state">Live document data is unavailable right now.</div>';
     }
@@ -168,7 +168,7 @@
       const history = readHistory();
       history.unshift({ query, answer, sources, time: new Date().toLocaleString(), timestamp: new Date().toISOString() });
       localStorage.setItem('rag-history', JSON.stringify(history.slice(0, 20)));
-      result.innerHTML = `<div class="answer-header"><span>Grounded answer</span><span>${escapeHtml(data.model_used || 'NVIDIA')}</span></div><div class="answer-text">${escapeHtml(answer)}</div><div class="answer-meta">Confidence: ${data.confidence_score == null ? '—' : escapeHtml(Number(data.confidence_score).toFixed(3))} · Context used: ${data.context_used ? 'Yes' : 'No'}</div><div class="result-sources"><strong>Sources</strong>${sources.length ? sources.map((source) => `<span>${escapeHtml(typeof source === 'string' ? source : (source.source_file || source.name || JSON.stringify(source)))}</span>`).join('') : '<span>None returned</span>'}</div>`;
+      result.innerHTML = `<div class="answer-header"><span>Grounded answer</span></div><div class="answer-text">${escapeHtml(answer)}</div><div class="answer-meta">Confidence: ${data.confidence_score == null ? '—' : escapeHtml(Number(data.confidence_score).toFixed(3))} · Context used: ${data.context_used ? 'Yes' : 'No'}</div><div class="result-sources"><strong>Sources</strong>${sources.length ? sources.map((source) => `<span>${escapeHtml(typeof source === 'string' ? source : (source.source_file || source.name || JSON.stringify(source)))}</span>`).join('') : '<span>None returned</span>'}</div>`;
       window.dispatchEvent(new CustomEvent('rag:dashboard-refresh'));
     } catch (error) {
       result.innerHTML = `<div class="message error">${escapeHtml(error.message)}</div>`;
@@ -203,8 +203,9 @@
       let data;
       try { data = JSON.parse(raw); } catch (_) { throw new Error(raw || 'Upload failed.'); }
       if (!response.ok) throw new Error(data.detail || data.error || 'Upload failed.');
-      result.className = 'message success';
-      result.textContent = `${data.message} · ${data.chunks || 0} chunks indexed.`;
+      localStorage.setItem('rag-last-uploaded', data.filename || file.name);
+      result.className = 'message success upload-success';
+      result.innerHTML = `<strong>Uploaded and indexed: ${escapeHtml(data.filename || file.name)}</strong><span>${escapeHtml(data.message || 'Document indexed successfully')} · ${escapeHtml(data.chunks || 0)} chunks indexed.</span>`;
       result.hidden = false;
       form.reset();
       window.dispatchEvent(new CustomEvent('rag:dashboard-refresh'));

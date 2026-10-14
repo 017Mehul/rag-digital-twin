@@ -147,7 +147,6 @@
     const cards = $$(".stat-card strong");
     const values = [data.documents ?? "—", data.chunks ?? "—", data.questions ?? "—", data.healthy ? "Healthy" : "Unavailable"];
     cards.forEach((card, index) => { card.textContent = values[index]; });
-    if ($(".live")) $(".live").innerHTML = `<i></i> ${data.healthy ? "Live" : "Degraded"}`;
 
     const rows = $(".table");
     if (rows) {
@@ -156,7 +155,7 @@
       if (!docs.length) rows.insertAdjacentHTML("beforeend", '<div class="table-row empty-row"><span>No documents indexed yet</span></div>');
       docs.slice(0, 8).forEach((doc) => rows.insertAdjacentHTML(
         "beforeend",
-        `<div class="table-row"><span>${escapeHtml(doc.name || doc.path || "Unnamed document")}</span><span>${escapeHtml(doc.type || "OTHER")}</span><span>—</span><span>${escapeHtml(doc.date_added || "—")}</span><span class="indexed">● ${escapeHtml(doc.status || "Indexed")}</span></div>`
+        `<div class="table-row${(localStorage.getItem("rag-last-uploaded") === (doc.name || doc.path || "Unnamed document")) ? " uploaded-highlight" : ""}"><span>${escapeHtml(doc.name || doc.path || "Unnamed document")}</span><span>${escapeHtml(doc.type || "OTHER")}</span><span>—</span><span>${escapeHtml(doc.date_added || "—")}</span><span class="indexed">● ${escapeHtml(doc.status || "Indexed")}</span></div>`
       ));
     }
 
@@ -181,7 +180,6 @@
       renderDashboard(data);
     } catch (error) {
       $$(".stat-card strong").forEach((card) => { card.textContent = "—"; });
-      if ($(".live")) $(".live").innerHTML = "<i></i> Offline";
       if ($(".table") && !$(".empty-row")) $(".table").insertAdjacentHTML("beforeend", '<div class="table-row empty-row"><span>Live document data unavailable</span></div>');
       console.warn(error.message);
     }
